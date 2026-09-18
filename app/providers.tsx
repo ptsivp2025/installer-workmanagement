@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getSession, verifySessionFromCookie, refreshDbTokenIfNeeded, type SessionUserProfile } from '@/lib/auth';
 import { getStoredLang, setStoredLang, translate, type Lang, type DictKey } from '@/lib/i18n';
+import { applyThemeColor } from '@/lib/theme';
 
 interface AuthContextValue {
   user: SessionUserProfile | null;
@@ -81,4 +82,34 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const t = useCallback((key: DictKey, vars?: Record<string, string | number>) => translate(lang, key, vars), [lang]);
 
   return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
+}
+
+const THEME_CACHE_KEY = 'iwm_theme_primary';
+
+/**
+ * Applies the admin-chosen brand color on every page — login included, since
+ * it has no session. Reads a cached color from sessionStorage first (paints
+ * immediately, no flash of the default blue), then refreshes from the public
+ * branding endpoint. Silent on failure: a theme fetch problem must never
+ * block anyone from using the app (same principle as branding elsewhere).
+ */
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    try {
+      const cached = window.sessionStorage.getItem(THEME_CACHE_KEY);
+      if (cached) applyThemeColor(cached);
+    } catch { /* ignore */ }
+
+    fetch('/api/public/branding')
+      .then(r => r.json())
+      .then((data: { primary_color?: string }) => {
+        if (data?.primary_color) {
+          applyThemeColor(data.primary_color);
+          try { window.sessionStorage.setItem(THEME_CACHE_KEY, data.primary_color); } catch { /* quota full — ignore */ }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  return <>{children}</>;
 }

@@ -65,7 +65,7 @@ Never commit `.env.local`. Never put `SUPABASE_SERVICE_ROLE_KEY` or
 
 1. Create a new project at supabase.com.
 2. Open **SQL Editor**.
-3. Run each file in `supabase/migrations/` **in order** (001 → 015), each as
+3. Run each file in `supabase/migrations/` **in order** (001 → 016), each as
    its own query:
    - `001_core_schema.sql` — users/sessions/credentials, JWT claim helpers
    - `002_business_schema.sql` — projects, activity_categories, activities,
@@ -131,7 +131,7 @@ migrations against each one.
 ## 8. First Setup Checklist
 
 - [ ] Supabase project created
-- [ ] Migrations 001–015 applied in order
+- [ ] Migrations 001–016 applied in order
 - [ ] RLS confirmed enabled on all tables
 - [ ] `activity-evidence` storage bucket confirmed private
 - [ ] `.env.local` filled in and app runs locally (`npm run dev`)

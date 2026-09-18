@@ -26,7 +26,11 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [brand, setBrand] = useState<{ company_name: string; logo_url: string | null } | null>(null);
+  const [brand, setBrand] = useState<{
+    company_name: string; logo_url: string | null; login_bg_url: string | null;
+    login_headline: string | null; login_subheadline: string | null;
+    primary_color: string; secondary_color: string;
+  } | null>(null);
 
   useEffect(() => {
     fetch('/api/public/branding').then(r => r.json()).then(setBrand).catch(() => {});
@@ -64,7 +68,10 @@ function LoginForm() {
   return (
     <div className="min-h-screen flex bg-slate-50">
       {/* Left: branding panel (desktop only) */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 text-white overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-brand-800">
+      <div
+        className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 text-white overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-brand-800 bg-cover bg-center"
+        style={brand?.login_bg_url ? { backgroundImage: `linear-gradient(135deg, ${brand.primary_color}e0, ${brand.secondary_color}e0), url(${brand.login_bg_url})` } : undefined}
+      >
         <div className="absolute inset-0 opacity-[0.07] bg-[radial-gradient(circle_at_1px_1px,white_1px,transparent_0)] bg-[length:28px_28px]" />
 
         <div className="relative flex items-center justify-between gap-2.5">
@@ -83,8 +90,8 @@ function LoginForm() {
         </div>
 
         <div className="relative max-w-md">
-          <h1 className="text-4xl font-black leading-tight mb-4">{t('login.tagline')}</h1>
-          <p className="text-white/80 text-base leading-relaxed mb-8">{t('login.description')}</p>
+          <h1 className="text-4xl font-black leading-tight mb-4">{brand?.login_headline || t('login.tagline')}</h1>
+          <p className="text-white/80 text-base leading-relaxed mb-8">{brand?.login_subheadline || t('login.description')}</p>
           <div className="flex flex-wrap gap-2.5">
             {FEATURES.map(({ icon: Icon, key }) => (
               <span key={key} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/12 backdrop-blur text-sm font-semibold border border-white/15">

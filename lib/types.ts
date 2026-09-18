@@ -70,6 +70,11 @@ export interface PlatformSettings {
   timezone: string;
   date_format: string;
   show_dashboard_category_breakdown: boolean;
+  primary_color: string;
+  secondary_color: string;
+  login_bg_url: string | null;
+  login_headline: string | null;
+  login_subheadline: string | null;
   updated_by: string | null;
   updated_at: string;
 }

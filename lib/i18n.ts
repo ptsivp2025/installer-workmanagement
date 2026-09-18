@@ -429,6 +429,13 @@ export const dict = {
   'adminSettings.showCategoryBreakdown': { en: 'Show category breakdown on Dashboard', id: 'Tampilkan rincian kategori di Dasbor' },
   'adminSettings.saveSettings': { en: 'Save Settings', id: 'Simpan Pengaturan' },
   'adminSettings.companyNameRequired': { en: 'Company name is required.', id: 'Nama perusahaan wajib diisi.' },
+  'adminSettings.themeSection': { en: 'Theme', id: 'Tema' },
+  'adminSettings.primaryColor': { en: 'Primary Color', id: 'Warna Utama' },
+  'adminSettings.secondaryColor': { en: 'Secondary Color', id: 'Warna Kedua' },
+  'adminSettings.themeHint': { en: 'Applies to buttons, links, and the login page — on every page, immediately after saving.', id: 'Berlaku untuk tombol, tautan, dan halaman login — di semua halaman, langsung setelah disimpan.' },
+  'adminSettings.loginBgUrl': { en: 'Login Background Image URL (optional)', id: 'URL Gambar Latar Login (opsional)' },
+  'adminSettings.loginHeadline': { en: 'Login Headline (optional)', id: 'Judul Halaman Login (opsional)' },
+  'adminSettings.loginSubheadline': { en: 'Login Subheadline (optional)', id: 'Subjudul Halaman Login (opsional)' },
 
   // ── admin: notifications ─────────────────────────────────────────────
   'adminNotifications.botToken': { en: 'Telegram Bot Token', id: 'Token Bot Telegram' },

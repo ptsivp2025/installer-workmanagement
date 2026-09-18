@@ -7,6 +7,7 @@ import { useAuth, useLanguage } from '@/app/providers';
 import type { PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { AdminTabs } from '@/components/shared/AdminTabs';
+import { applyThemeColor, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '@/lib/theme';
 
 const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'];
 
@@ -14,7 +15,11 @@ export default function AdminSettingsPage() {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
-  const [form, setForm] = useState({ company_name: '', logo_url: '', timezone: '', date_format: 'DD/MM/YYYY', show_dashboard_category_breakdown: true });
+  const [form, setForm] = useState({
+    company_name: '', logo_url: '', timezone: '', date_format: 'DD/MM/YYYY', show_dashboard_category_breakdown: true,
+    primary_color: DEFAULT_PRIMARY, secondary_color: DEFAULT_SECONDARY,
+    login_bg_url: '', login_headline: '', login_subheadline: '',
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -28,7 +33,12 @@ export default function AdminSettingsPage() {
     else {
       const s = data as PlatformSettings;
       setSettings(s);
-      setForm({ company_name: s.company_name, logo_url: s.logo_url ?? '', timezone: s.timezone, date_format: s.date_format, show_dashboard_category_breakdown: s.show_dashboard_category_breakdown });
+      setForm({
+        company_name: s.company_name, logo_url: s.logo_url ?? '', timezone: s.timezone, date_format: s.date_format,
+        show_dashboard_category_breakdown: s.show_dashboard_category_breakdown,
+        primary_color: s.primary_color ?? DEFAULT_PRIMARY, secondary_color: s.secondary_color ?? DEFAULT_SECONDARY,
+        login_bg_url: s.login_bg_url ?? '', login_headline: s.login_headline ?? '', login_subheadline: s.login_subheadline ?? '',
+      });
     }
     setLoading(false);
   }, []);
@@ -47,10 +57,17 @@ export default function AdminSettingsPage() {
       timezone: form.timezone.trim() || 'Asia/Jakarta',
       date_format: form.date_format,
       show_dashboard_category_breakdown: form.show_dashboard_category_breakdown,
+      primary_color: form.primary_color,
+      secondary_color: form.secondary_color,
+      login_bg_url: form.login_bg_url.trim() || null,
+      login_headline: form.login_headline.trim() || null,
+      login_subheadline: form.login_subheadline.trim() || null,
       updated_by: user?.id ?? null,
     }).eq('id', true);
     setSaving(false);
     if (err) { setError(err.message); return; }
+    applyThemeColor(form.primary_color);
+    try { window.sessionStorage.setItem('iwm_theme_primary', form.primary_color); } catch { /* ignore */ }
     setSaved(true);
     load();
   }
@@ -88,6 +105,41 @@ export default function AdminSettingsPage() {
               <select value={form.date_format} onChange={e => setForm(f => ({ ...f, date_format: e.target.value }))} className={inputCls}>
                 {DATE_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 space-y-4">
+            <p className="text-sm font-medium text-slate-700">{t('adminSettings.themeSection')}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.primaryColor')}</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={form.primary_color} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))} className="h-9 w-12 rounded-control border border-slate-300 cursor-pointer" />
+                  <input value={form.primary_color} onChange={e => setForm(f => ({ ...f, primary_color: e.target.value }))} className={inputCls} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.secondaryColor')}</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={form.secondary_color} onChange={e => setForm(f => ({ ...f, secondary_color: e.target.value }))} className="h-9 w-12 rounded-control border border-slate-300 cursor-pointer" />
+                  <input value={form.secondary_color} onChange={e => setForm(f => ({ ...f, secondary_color: e.target.value }))} className={inputCls} />
+                </div>
+              </div>
+            </div>
+            <div className="h-12 rounded-control" style={{ background: `linear-gradient(135deg, ${form.primary_color}, ${form.secondary_color})` }} />
+            <p className="text-xs text-slate-400">{t('adminSettings.themeHint')}</p>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.loginBgUrl')}</label>
+              <input value={form.login_bg_url} onChange={e => setForm(f => ({ ...f, login_bg_url: e.target.value }))} className={inputCls} placeholder="https://…/background.jpg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.loginHeadline')}</label>
+              <input value={form.login_headline} onChange={e => setForm(f => ({ ...f, login_headline: e.target.value }))} className={inputCls} placeholder={t('login.tagline')} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.loginSubheadline')}</label>
+              <textarea value={form.login_subheadline} onChange={e => setForm(f => ({ ...f, login_subheadline: e.target.value }))} className={inputCls} rows={2} placeholder={t('login.description')} />
             </div>
           </div>
 
