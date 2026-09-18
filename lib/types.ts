@@ -154,6 +154,7 @@ export interface AppUser {
   full_name: string;
   role: string;
   phone: string | null;
+  telegram_chat_id: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;

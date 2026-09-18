@@ -12,8 +12,10 @@
 --    — the actual discount/billing decision stays outside this system.
 -- ============================================================================
 
-ALTER TABLE public.activities ADD COLUMN pic_name text;
-ALTER TABLE public.activities ADD COLUMN pic_phone text;
+-- IF NOT EXISTS: 009_activity_pic.sql (a parallel session) may have already
+-- added these same two columns under a different migration filename.
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS pic_name text;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS pic_phone text;
 
 -- Which categories count as a "Demo" vs. an "Installation" for the
 -- eligibility check below — configurable from Admin Panel, not hardcoded

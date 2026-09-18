@@ -1,5 +1,35 @@
 import { getAdminClient } from './supabase-admin';
 
+async function getBotToken(): Promise<string | null> {
+  const supabase = getAdminClient();
+  const { data } = await supabase.from('notification_settings').select('telegram_bot_token').eq('id', true).single();
+  return data?.telegram_bot_token ?? null;
+}
+
+/**
+ * Send the same message to an arbitrary list of chat ids, using the one
+ * shared bot token (notification_settings). Used for per-user broadcasts
+ * (e.g. every installer, or an activity's linked personnel) where the
+ * destinations come from users.telegram_chat_id rather than an admin-
+ * configured notification_groups row.
+ */
+export async function sendTelegramMessages(chatIds: string[], text: string): Promise<void> {
+  if (!chatIds.length) return;
+  try {
+    const token = await getBotToken();
+    if (!token) return;
+    await Promise.all(chatIds.map(chatId =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      }).catch(() => {})
+    ));
+  } catch {
+    // Optional feature — never blocks the caller's main flow.
+  }
+}
+
 /**
  * Best-effort Telegram notification — optional feature. Never throws: a
  * misconfigured or unreachable bot must not block the activity/review flow
