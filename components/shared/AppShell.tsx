@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X,
 } from 'lucide-react';
 import { useAuth } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
 import { roleLabel } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,6 +26,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading, setUserProfile } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [brand, setBrand] = useState<{ company_name: string; logo_url: string | null } | null>(null);
+
+  useEffect(() => {
+    supabase.from('platform_settings').select('company_name, logo_url').eq('id', true).single()
+      .then((res: { data: { company_name: string; logo_url: string | null } | null }) => setBrand(res.data));
+  }, []);
 
   async function handleLogout() {
     clearSession();
@@ -39,16 +46,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-slate-200 z-40 flex items-center justify-between px-4">
         <button onClick={() => setMobileOpen(true)} className="text-slate-600"><Menu className="h-5 w-5" /></button>
-        <span className="font-semibold text-slate-900 text-sm">Installer Work Management</span>
+        <span className="font-semibold text-slate-900 text-sm">{brand?.company_name ?? 'Installer Work Management'}</span>
         <div className="w-5" />
       </div>
 
       {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-14 flex items-center justify-between px-5 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-600 text-white flex items-center justify-center text-sm font-bold">IW</div>
-            <span className="font-semibold text-slate-900 text-sm">Work Management</span>
+          <div className="flex items-center gap-2 min-w-0">
+            {brand?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.logo_url} alt="" className="h-8 w-8 rounded-lg object-contain shrink-0" />
+            ) : (
+              <div className="h-8 w-8 rounded-lg bg-brand-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                {(brand?.company_name ?? 'IW').slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <span className="font-semibold text-slate-900 text-sm truncate">{brand?.company_name ?? 'Work Management'}</span>
           </div>
           <button onClick={() => setMobileOpen(false)} className="lg:hidden text-slate-400"><X className="h-5 w-5" /></button>
         </div>

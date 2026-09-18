@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { CalendarClock, PlayCircle, CheckCircle2, Clock3, FolderKanban, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
-import type { ActivityCategory } from '@/lib/types';
+import type { ActivityCategory, PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 
 interface CategoryCount { category: ActivityCategory; today: number }
@@ -20,6 +20,7 @@ export default function DashboardPage() {
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
   const [projectsInProgress, setProjectsInProgress] = useState(0);
   const [categoryCounts, setCategoryCounts] = useState<CategoryCount[]>([]);
+  const [showCategoryBreakdown, setShowCategoryBreakdown] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -29,13 +30,14 @@ export default function DashboardPage() {
       const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
       const today = todayStart.toISOString().slice(0, 10);
 
-      const [{ count: todayC }, { count: inProgC }, { count: completedTodayC }, { count: pendingC }, { count: projC }, { data: cats }] = await Promise.all([
+      const [{ count: todayC }, { count: inProgC }, { count: completedTodayC }, { count: pendingC }, { count: projC }, { data: cats }, { data: settings }] = await Promise.all([
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('scheduled_date', today),
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'completed').gte('completed_at', todayStart.toISOString()).lte('completed_at', todayEnd.toISOString()),
         supabase.from('form_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('activity_categories').select('*').eq('active', true).order('sort_order'),
+        supabase.from('platform_settings').select('show_dashboard_category_breakdown').eq('id', true).single(),
       ]);
 
       setTodayCount(todayC ?? 0);
@@ -43,6 +45,7 @@ export default function DashboardPage() {
       setCompletedTodayCount(completedTodayC ?? 0);
       setPendingReviewCount(pendingC ?? 0);
       setProjectsInProgress(projC ?? 0);
+      setShowCategoryBreakdown((settings as PlatformSettings | null)?.show_dashboard_category_breakdown ?? true);
 
       const categories = (cats as ActivityCategory[]) ?? [];
       const counts = await Promise.all(categories.map(async c => {
@@ -82,6 +85,7 @@ export default function DashboardPage() {
         <MetricCard icon={FolderKanban} label="Projects In Progress" value={projectsInProgress} href="/project-progress" />
       </div>
 
+      {showCategoryBreakdown && (
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
         <h2 className="font-semibold text-slate-900 mb-4">Today by Category</h2>
         {categoryCounts.length === 0 ? (
@@ -97,6 +101,7 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

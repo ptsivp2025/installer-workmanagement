@@ -1,0 +1,70 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Send, CheckCircle2, XCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/app/providers';
+import { LoadingState, ErrorState } from '@/components/shared/States';
+import { AdminTabs } from '@/components/shared/AdminTabs';
+
+export default function AdminIntegrationsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [telegramConfigured, setTelegramConfigured] = useState(false);
+  const [activeGroups, setActiveGroups] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [{ data: settings, error: sErr }, { count, error: gErr }] = await Promise.all([
+      supabase.from('notification_settings').select('telegram_bot_token').eq('id', true).single(),
+      supabase.from('notification_groups').select('*', { count: 'exact', head: true }).eq('active', true),
+    ]);
+    if (sErr) setError(sErr.message);
+    else if (gErr) setError(gErr.message);
+    else {
+      setTelegramConfigured(!!settings?.telegram_bot_token);
+      setActiveGroups(count ?? 0);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  if (authLoading) return <LoadingState />;
+  if (!user || user.role !== 'admin') return <ErrorState message="Only admins can access this page." />;
+
+  return (
+    <div>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <AdminTabs />
+      <p className="text-sm text-slate-500 mb-6">Third-party integrations connected to this platform.</p>
+
+      {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (
+        <div className="max-w-lg space-y-3">
+          <Link href="/admin/notifications" className="block bg-white rounded-card border border-slate-200 shadow-card p-5 hover:shadow-modal transition">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Send className="h-5 w-5 text-brand-600 mt-0.5" />
+                <div>
+                  <p className="font-medium text-slate-900">Telegram</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {telegramConfigured
+                      ? `Bot configured · ${activeGroups} active notification group${activeGroups === 1 ? '' : 's'}`
+                      : 'Bot token not set — no alerts will be sent.'}
+                  </p>
+                </div>
+              </div>
+              {telegramConfigured
+                ? <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                : <XCircle className="h-5 w-5 text-slate-300 shrink-0" />}
+            </div>
+          </Link>
+          <p className="text-xs text-slate-400 px-1">No other integrations are connected yet.</p>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -15,9 +15,6 @@ export async function POST(request: NextRequest) {
   if (!reviewId) return NextResponse.json({ error: 'reviewId is required.' }, { status: 400 });
 
   const supabase = getAdminClient();
-  const { data: settings } = await supabase.from('notification_settings').select('notify_on_review_decision').eq('id', true).single();
-  if (!settings?.notify_on_review_decision) return NextResponse.json({ sent: false });
-
   const { data: review } = await supabase
     .from('form_reviews')
     .select('status, notes, activities(title, projects(name, code), activity_categories(name))')
@@ -34,7 +31,8 @@ export async function POST(request: NextRequest) {
     `${activity?.activity_categories?.name ?? ''}: ${activity?.title ?? ''}\n` +
     `Project: ${activity?.projects?.name ?? ''} (${activity?.projects?.code ?? ''})\n` +
     `By: ${user.full_name ?? user.username}` +
-    (review.notes ? `\nNotes: ${review.notes}` : '')
+    (review.notes ? `\nNotes: ${review.notes}` : ''),
+    'review_decision'
   );
 
   return NextResponse.json({ sent: true });

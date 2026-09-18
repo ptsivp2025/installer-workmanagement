@@ -48,9 +48,28 @@ export interface SalesDivision {
 export interface NotificationSettings {
   id: boolean;
   telegram_bot_token: string | null;
-  telegram_chat_id: string | null;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export interface NotificationGroup {
+  id: string;
+  name: string;
+  telegram_chat_id: string;
   notify_on_completion: boolean;
   notify_on_review_decision: boolean;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PlatformSettings {
+  id: boolean;
+  company_name: string;
+  logo_url: string | null;
+  timezone: string;
+  date_format: string;
+  show_dashboard_category_breakdown: boolean;
   updated_by: string | null;
   updated_at: string;
 }

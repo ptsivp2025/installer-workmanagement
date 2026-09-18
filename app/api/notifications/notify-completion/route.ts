@@ -17,9 +17,6 @@ export async function POST(request: NextRequest) {
   if (!activityId) return NextResponse.json({ error: 'activityId is required.' }, { status: 400 });
 
   const supabase = getAdminClient();
-  const { data: settings } = await supabase.from('notification_settings').select('notify_on_completion').eq('id', true).single();
-  if (!settings?.notify_on_completion) return NextResponse.json({ sent: false });
-
   const { data: activity } = await supabase
     .from('activities')
     .select('title, status, scheduled_date, projects(name, code), activity_categories(name)')
@@ -35,7 +32,8 @@ export async function POST(request: NextRequest) {
     `✅ <b>Activity Completed</b>\n` +
     `${category?.name ?? ''}: ${activity.title}\n` +
     `Project: ${project?.name ?? ''} (${project?.code ?? ''})\n` +
-    `By: ${user.full_name ?? user.username}`
+    `By: ${user.full_name ?? user.username}`,
+    'completion'
   );
 
   return NextResponse.json({ sent: true });
