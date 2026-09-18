@@ -1,0 +1,75 @@
+import { createClient } from '@supabase/supabase-js';
+
+/**
+ * Browser Supabase client. This platform does not use Supabase Auth — a
+ * custom bcrypt + httpOnly session cookie handles login (lib/auth.ts), so
+ * auth.uid() inside RLS policies is always NULL. Instead, login issues a
+ * short-lived JWT (lib/db-token.ts) carrying the user's identity as custom
+ * claims; every PostgREST request below attaches it as a Bearer token so
+ * RLS policies can read request.jwt.claims instead of USING (true).
+ */
+const TOKEN_KEY = 'iwm_db_token';
+
+let dbToken: string | null =
+  typeof window !== 'undefined' ? window.sessionStorage.getItem(TOKEN_KEY) : null;
+
+export function setDbToken(token: string | null): void {
+  dbToken = token;
+  if (typeof window === 'undefined') return;
+  if (token) window.sessionStorage.setItem(TOKEN_KEY, token);
+  else window.sessionStorage.removeItem(TOKEN_KEY);
+}
+
+export function getDbToken(): string | null {
+  return dbToken;
+}
+
+/** Token expiry (epoch ms) read from the `exp` claim, for the refresh monitor. */
+export function dbTokenExpiryMs(): number | null {
+  if (!dbToken) return null;
+  try {
+    const payload = dbToken.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const exp = (JSON.parse(json) as { exp?: unknown }).exp;
+    return typeof exp === 'number' ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+let refreshInFlight: Promise<void> | null = null;
+
+/** Re-issue the PostgREST token from the still-valid session cookie. */
+export function refreshDbToken(): Promise<void> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch('/api/auth/session', { credentials: 'include' });
+      if (!res.ok) return;
+      const { db_token } = await res.json();
+      if (db_token) setDbToken(db_token);
+    } catch {
+      /* offline — next scheduled check retries */
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  return refreshInFlight;
+}
+
+const fetchWithToken: typeof fetch = async (input, init) => {
+  if (dbToken) {
+    const exp = dbTokenExpiryMs();
+    if (exp !== null && exp - Date.now() < 60_000) await refreshDbToken();
+  }
+  const headers = new Headers(init?.headers);
+  if (dbToken) headers.set('Authorization', `Bearer ${dbToken}`);
+  return fetch(input, { ...init, headers });
+};
+
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { global: { fetch: fetchWithToken }, auth: { persistSession: false } },
+);
