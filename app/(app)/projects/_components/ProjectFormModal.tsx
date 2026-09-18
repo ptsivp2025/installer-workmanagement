@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
+import { LocationPicker } from '@/components/shared/LocationPicker';
 import type { Project, SalesDivision } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 
@@ -100,17 +101,12 @@ export function ProjectFormModal({
             <input value={form.sales_person_name} onChange={e => setForm(f => ({ ...f, sales_person_name: e.target.value }))} className={inputCls} placeholder="e.g. Budi" />
           </Field>
         </div>
-        <Field label="Address">
-          <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className={inputCls} />
-        </Field>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Latitude">
-            <input value={form.latitude} onChange={e => setForm(f => ({ ...f, latitude: e.target.value }))} className={inputCls} placeholder="-6.200000" />
-          </Field>
-          <Field label="Target Longitude">
-            <input value={form.longitude} onChange={e => setForm(f => ({ ...f, longitude: e.target.value }))} className={inputCls} placeholder="106.816666" />
-          </Field>
-        </div>
+        <LocationPicker
+          address={form.address}
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onChange={(address, latitude, longitude) => setForm(f => ({ ...f, address, latitude, longitude }))}
+        />
         <Field label="Expected Completion">
           <input type="date" value={form.expected_completion} onChange={e => setForm(f => ({ ...f, expected_completion: e.target.value }))} className={inputCls} />
         </Field>

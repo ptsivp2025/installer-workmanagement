@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
-import type { Activity, ActivityCategory } from '@/lib/types';
+import { LocationPicker } from '@/components/shared/LocationPicker';
+import type { Activity, ActivityCategory, AppUser } from '@/lib/types';
 import { PRIORITIES } from '@/lib/constants';
 
-interface ProjectOption { id: string; name: string; code: string; }
+interface ProjectOption { id: string; name: string; code: string; customer_name: string | null; }
 
 export function ActivityFormModal({
   open, onClose, onSaved, categories, activity, defaultProjectId,
@@ -18,8 +19,10 @@ export function ActivityFormModal({
 }) {
   const { user } = useAuth();
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [selectedPersonnel, setSelectedPersonnel] = useState<string[]>([]);
   const [form, setForm] = useState({
-    project_id: '', category_id: '', title: '', customer_name: '', location_address: '',
+    project_id: '', category_id: '', title: '', location_address: '',
     scheduled_date: '', start_time: '', end_time: '', priority: 'normal', notes: '',
     target_latitude: '', target_longitude: '', pic_name: '', pic_phone: '',
   });
@@ -28,8 +31,10 @@ export function ActivityFormModal({
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('projects').select('id, name, code').eq('status', 'active').order('name').limit(200)
+    supabase.from('projects').select('id, name, code, customer_name').eq('status', 'active').order('name').limit(200)
       .then((res: { data: ProjectOption[] | null }) => setProjects(res.data ?? []));
+    supabase.from('users').select('*').eq('active', true).order('full_name')
+      .then((res: { data: AppUser[] | null }) => setUsers(res.data ?? []));
   }, [open]);
 
   useEffect(() => {
@@ -37,7 +42,7 @@ export function ActivityFormModal({
     if (activity) {
       setForm({
         project_id: activity.project_id, category_id: activity.category_id, title: activity.title,
-        customer_name: activity.customer_name ?? '', location_address: activity.location_address ?? '',
+        location_address: activity.location_address ?? '',
         scheduled_date: activity.scheduled_date, start_time: activity.start_time ?? '', end_time: activity.end_time ?? '',
         priority: activity.priority, notes: activity.notes ?? '',
         target_latitude: activity.target_latitude?.toString() ?? '', target_longitude: activity.target_longitude?.toString() ?? '',
@@ -46,13 +51,18 @@ export function ActivityFormModal({
     } else {
       setForm({
         project_id: defaultProjectId ?? '', category_id: categories.find(c => c.active)?.id ?? '', title: '',
-        customer_name: '', location_address: '', scheduled_date: new Date().toISOString().slice(0, 10),
+        location_address: '', scheduled_date: new Date().toISOString().slice(0, 10),
         start_time: '', end_time: '', priority: 'normal', notes: '', target_latitude: '', target_longitude: '',
         pic_name: '', pic_phone: '',
       });
     }
+    setSelectedPersonnel([]);
     setError(null);
   }, [open, activity, defaultProjectId, categories]);
+
+  function togglePersonnel(userId: string) {
+    setSelectedPersonnel(sel => sel.includes(userId) ? sel.filter(id => id !== userId) : [...sel, userId]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -63,11 +73,12 @@ export function ActivityFormModal({
     setSaving(true);
     setError(null);
 
+    const project = projects.find(p => p.id === form.project_id);
     const payload = {
       project_id: form.project_id,
       category_id: form.category_id,
       title: form.title.trim(),
-      customer_name: form.customer_name.trim() || null,
+      customer_name: project?.customer_name ?? null,
       location_address: form.location_address.trim() || null,
       scheduled_date: form.scheduled_date,
       start_time: form.start_time || null,
@@ -80,16 +91,40 @@ export function ActivityFormModal({
       pic_phone: form.pic_phone.trim() || null,
     };
 
-    const result = activity
-      ? await supabase.from('activities').update(payload).eq('id', activity.id)
-      : await supabase.from('activities').insert({
-          ...payload,
-          request_number: `REQ-${Date.now().toString(36).toUpperCase()}`,
-          created_by: user?.id ?? null,
-        });
+    if (activity) {
+      const result = await supabase.from('activities').update(payload).eq('id', activity.id);
+      setSaving(false);
+      if (result.error) { setError(result.error.message); return; }
+      onSaved();
+      return;
+    }
+
+    const { data: created, error: insertErr } = await supabase.from('activities').insert({
+      ...payload,
+      request_number: `REQ-${Date.now().toString(36).toUpperCase()}`,
+      created_by: user?.id ?? null,
+    }).select('id').single();
+
+    if (insertErr || !created) {
+      setSaving(false);
+      setError(insertErr?.message ?? 'Failed to create activity.');
+      return;
+    }
+
+    if (selectedPersonnel.length > 0) {
+      const rows = selectedPersonnel.map(userId => {
+        const u = users.find(x => x.id === userId);
+        return { activity_id: created.id, user_id: userId, name: u?.full_name ?? 'Unknown', role: u?.role ?? null };
+      });
+      const { error: personnelErr } = await supabase.from('activity_personnel').insert(rows);
+      if (personnelErr) {
+        setSaving(false);
+        setError(`Activity created, but assigning the team failed: ${personnelErr.message}`);
+        return;
+      }
+    }
 
     setSaving(false);
-    if (result.error) { setError(result.error.message); return; }
     onSaved();
   }
 
@@ -112,20 +147,12 @@ export function ActivityFormModal({
           </Field>
         </div>
         <Field label="Title" required>
-          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputCls} placeholder="e.g. Instalasi Demo — Lobby TV" />
+          <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} className={inputCls} placeholder="e.g. Instalasi Maxhub 86 inch" />
         </Field>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Customer">
-            <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} className={inputCls} />
-          </Field>
-          <Field label="Priority">
-            <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={inputCls}>
-              {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </Field>
-        </div>
-        <Field label="Location Address">
-          <input value={form.location_address} onChange={e => setForm(f => ({ ...f, location_address: e.target.value }))} className={inputCls} />
+        <Field label="Priority">
+          <select value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))} className={`${inputCls} sm:w-48`}>
+            {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Field label="Scheduled Date" required>
@@ -138,13 +165,14 @@ export function ActivityFormModal({
             <input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} className={inputCls} />
           </Field>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Latitude (optional — falls back to project)">
-            <input value={form.target_latitude} onChange={e => setForm(f => ({ ...f, target_latitude: e.target.value }))} className={inputCls} />
-          </Field>
-          <Field label="Target Longitude (optional — falls back to project)">
-            <input value={form.target_longitude} onChange={e => setForm(f => ({ ...f, target_longitude: e.target.value }))} className={inputCls} />
-          </Field>
+        <div>
+          <LocationPicker
+            address={form.location_address}
+            latitude={form.target_latitude}
+            longitude={form.target_longitude}
+            onChange={(location_address, target_latitude, target_longitude) => setForm(f => ({ ...f, location_address, target_latitude, target_longitude }))}
+          />
+          <p className="text-xs text-slate-400 mt-1">Leave blank to fall back to the project&apos;s location.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="PIC Name (Person In Charge)">
@@ -154,6 +182,23 @@ export function ActivityFormModal({
             <input value={form.pic_phone} onChange={e => setForm(f => ({ ...f, pic_phone: e.target.value }))} className={inputCls} />
           </Field>
         </div>
+        {!activity && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5"><Users className="h-4 w-4" /> Team / Technicians</label>
+            <div className="rounded-control border border-slate-300 max-h-40 overflow-y-auto divide-y divide-slate-100">
+              {users.length === 0 ? (
+                <p className="text-sm text-slate-400 px-3 py-2">No active users.</p>
+              ) : users.map(u => (
+                <label key={u.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" checked={selectedPersonnel.includes(u.id)} onChange={() => togglePersonnel(u.id)} className="rounded" />
+                  <span className="text-slate-700">{u.full_name}</span>
+                  <span className="text-xs text-slate-400">{u.role}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400 mt-1">Optional — assign who&apos;s doing this job now, or add them later from the activity page.</p>
+          </div>
+        )}
         <Field label="Notes">
           <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className={inputCls} rows={3} />
         </Field>

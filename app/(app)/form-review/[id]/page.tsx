@@ -34,7 +34,7 @@ export default function FormReviewDetailPage() {
     try {
       const { data: rev, error: err } = await supabase
         .from('form_reviews')
-        .select('*, activities(*, projects(id, name, code), activity_categories(name, counts_as_installation))')
+        .select('*, activities(*, projects(id, name, code), activity_categories(name))')
         .eq('id', id)
         .single();
       if (err) throw err;
@@ -49,10 +49,17 @@ export default function FormReviewDetailPage() {
       setPersonnel((pers as ActivityPersonnel[]) ?? []);
       setEvidence((evid as ActivityEvidence[]) ?? []);
 
-      if (rev.activities?.activity_categories?.counts_as_installation) {
-        const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', activityId).maybeSingle();
-        setDiscount((elig as ActivityDiscountEligibility) ?? null);
-      } else {
+      // Best-effort — see the same note in request-schedule/[id]/page.tsx.
+      try {
+        const { data: cat } = await supabase
+          .from('activity_categories').select('counts_as_installation').eq('id', rev.activities.category_id).single();
+        if (cat?.counts_as_installation) {
+          const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', activityId).maybeSingle();
+          setDiscount((elig as ActivityDiscountEligibility) ?? null);
+        } else {
+          setDiscount(null);
+        }
+      } catch {
         setDiscount(null);
       }
     } catch (e) {

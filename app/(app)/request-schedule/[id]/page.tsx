@@ -34,9 +34,13 @@ export default function ActivityDetailPage() {
     setLoading(true);
     setError(null);
     try {
+      // Core fields only — must never fail because of an optional/newer
+      // column (counts_as_demo, etc.) that a not-yet-applied migration
+      // hasn't added on this database yet (spec: never let an optional
+      // feature take down the whole activity page).
       const { data: act, error: actErr } = await supabase
         .from('activities')
-        .select('*, activity_categories(id, name, code, requires_gps, requires_evidence, requires_personnel, evidence_min_count, gps_radius_m, counts_as_demo, counts_as_installation), projects(id, name, code, latitude, longitude)')
+        .select('*, activity_categories(id, name, code, requires_gps, requires_evidence, requires_personnel, evidence_min_count, gps_radius_m), projects(id, name, code, latitude, longitude)')
         .eq('id', id)
         .single();
       if (actErr) throw actErr;
@@ -56,10 +60,20 @@ export default function ActivityDetailPage() {
       setReview((rev as FormReview) ?? null);
       setCategories((cats as ActivityCategory[]) ?? []);
 
-      if (activityData.activity_categories?.counts_as_installation) {
-        const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', id).maybeSingle();
-        setDiscount((elig as ActivityDiscountEligibility) ?? null);
-      } else {
+      // Best-effort: discount-eligibility badge. Wrapped separately so a
+      // missing counts_as_installation column or activity_discount_eligibility
+      // view (migration 009 not applied yet) just hides the badge instead of
+      // failing the whole page load.
+      try {
+        const { data: cat } = await supabase
+          .from('activity_categories').select('counts_as_installation').eq('id', activityData.category_id).single();
+        if (cat?.counts_as_installation) {
+          const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', id).maybeSingle();
+          setDiscount((elig as ActivityDiscountEligibility) ?? null);
+        } else {
+          setDiscount(null);
+        }
+      } catch {
         setDiscount(null);
       }
     } catch (e) {
