@@ -10,7 +10,6 @@ import type { Project, Activity } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
-import { LocationMap } from '@/components/shared/LocationMap';
 import { ProjectFormModal } from '../_components/ProjectFormModal';
 
 export default function ProjectDetailPage() {
@@ -80,6 +79,7 @@ export default function ProjectDetailPage() {
             </div>
             <p className="text-sm text-slate-500 mt-1 flex items-center gap-3 flex-wrap">
               {project.customer_name && <span>{project.customer_name}</span>}
+              {project.sales_person_name && <span className="text-slate-400">Sales: {project.sales_person_name}</span>}
               {project.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{project.address}</span>}
               {project.expected_completion && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Target: {formatDate(project.expected_completion)}</span>}
             </p>
@@ -95,12 +95,6 @@ export default function ProjectDetailPage() {
         </div>
 
         {project.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{project.notes}</p>}
-
-        {project.latitude != null && project.longitude != null && (
-          <div className="mt-4">
-            <LocationMap markers={[{ lat: project.latitude, lng: project.longitude, color: '#2563eb', label: project.name }]} />
-          </div>
-        )}
 
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm mb-1.5">

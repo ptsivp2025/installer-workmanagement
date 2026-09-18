@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, BadgePercent, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
-import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview } from '@/lib/types';
+import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview, ActivityDiscountEligibility } from '@/lib/types';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
@@ -25,6 +25,7 @@ export default function ActivityDetailPage() {
   const [evidence, setEvidence] = useState<ActivityEvidence[]>([]);
   const [review, setReview] = useState<FormReview | null>(null);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  const [discount, setDiscount] = useState<ActivityDiscountEligibility | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -35,11 +36,12 @@ export default function ActivityDetailPage() {
     try {
       const { data: act, error: actErr } = await supabase
         .from('activities')
-        .select('*, activity_categories(id, name, code, requires_gps, requires_evidence, requires_personnel, evidence_min_count, gps_radius_m), projects(id, name, code, latitude, longitude)')
+        .select('*, activity_categories(id, name, code, requires_gps, requires_evidence, requires_personnel, evidence_min_count, gps_radius_m, counts_as_demo, counts_as_installation), projects(id, name, code, latitude, longitude)')
         .eq('id', id)
         .single();
       if (actErr) throw actErr;
-      setActivity(act as Activity);
+      const activityData = act as Activity;
+      setActivity(activityData);
       const proj = (act as unknown as { projects: { latitude: number | null; longitude: number | null } }).projects;
       setProjectLatLng({ lat: proj?.latitude ?? null, lng: proj?.longitude ?? null });
 
@@ -53,6 +55,13 @@ export default function ActivityDetailPage() {
       setEvidence((evid as ActivityEvidence[]) ?? []);
       setReview((rev as FormReview) ?? null);
       setCategories((cats as ActivityCategory[]) ?? []);
+
+      if (activityData.activity_categories?.counts_as_installation) {
+        const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', id).maybeSingle();
+        setDiscount((elig as ActivityDiscountEligibility) ?? null);
+      } else {
+        setDiscount(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load activity.');
     } finally {
@@ -106,10 +115,24 @@ export default function ActivityDetailPage() {
           <InfoRow label="Location"><span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{activity.location_address || '—'}</span></InfoRow>
           <InfoRow label="Priority"><span className="capitalize">{activity.priority}</span></InfoRow>
           <InfoRow label="Completed">{formatDateTime(activity.completed_at)}</InfoRow>
-          {(activity.pic_name || activity.pic_phone) && (
-            <InfoRow label="Site PIC">{activity.pic_name || '—'}{activity.pic_phone ? ` · ${activity.pic_phone}` : ''}</InfoRow>
-          )}
         </div>
+
+        {(activity.pic_name || activity.pic_phone) && (
+          <div className="mt-3 flex items-center gap-1.5 text-sm text-slate-600">
+            <UserRound className="h-3.5 w-3.5 text-slate-400" />
+            PIC: {activity.pic_name || '—'}{activity.pic_phone && ` · ${activity.pic_phone}`}
+          </div>
+        )}
+
+        {discount && (
+          <div className="mt-3 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5">
+            <BadgePercent className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              Eligible for demo discount — a Demo on this project completed {discount.days_since_demo} days earlier
+              ({formatDate(discount.demo_completed_at)}).
+            </span>
+          </div>
+        )}
 
         {activity.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{activity.notes}</p>}
 

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Camera, Navigation, CheckCircle2, Clock, CalendarClock, ListTodo, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Users, Camera, Navigation, CheckCircle2, Clock, CalendarClock, ListTodo, AlertTriangle, BadgePercent } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Project, Activity, ActivityPersonnel, ActivityEvidence } from '@/lib/types';
+import type { Project, Activity, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
@@ -18,6 +18,7 @@ export default function ProjectProgressDetailPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
   const [recentEvidence, setRecentEvidence] = useState<ActivityEvidence[]>([]);
+  const [discountByActivity, setDiscountByActivity] = useState<Record<string, ActivityDiscountEligibility>>({});
   const { urls: thumbs, error: thumbsError, retry: retryThumbs } = useSignedUrls(recentEvidence.map(e => e.thumbnail_path ?? e.storage_path));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,11 @@ export default function ProjectProgressDetailPage() {
         setPersonnel((pers as ActivityPersonnel[]) ?? []);
         setRecentEvidence((evid as ActivityEvidence[]) ?? []);
       }
+
+      const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('project_id', id);
+      const map: Record<string, ActivityDiscountEligibility> = {};
+      for (const e of (elig as ActivityDiscountEligibility[]) ?? []) map[e.activity_id] = e;
+      setDiscountByActivity(map);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load project progress.');
     } finally {
@@ -117,6 +123,9 @@ export default function ProjectProgressDetailPage() {
                     <StatusBadge status={a.status} />
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">{formatDate(a.scheduled_date)}</p>
+                  {discountByActivity[a.id] && (
+                    <p className="text-xs text-amber-700 mt-1 flex items-center gap-1"><BadgePercent className="h-3 w-3" /> Eligible for demo discount</p>
+                  )}
                 </Link>
               </li>
             ))}

@@ -1,27 +1,28 @@
+import { getAdminClient } from './supabase-admin';
+
 /**
- * Minimal Telegram Bot API wrapper — server-only (needs TELEGRAM_BOT_TOKEN).
- * Best-effort: a failed send never throws, since a notification going out
- * should never block or fail the business action that triggered it.
+ * Best-effort Telegram notification — optional feature (spec: "Telegram
+ * notifications (optional)"). Never throws: a misconfigured or unreachable
+ * bot must not block the activity/review flow that triggered it.
  */
-const API_BASE = 'https://api.telegram.org';
-
-export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token || !chatId) return false;
-
+export async function sendTelegramNotification(message: string): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE}/bot${token}/sendMessage`, {
+    const supabase = getAdminClient();
+    const { data: settings } = await supabase
+      .from('notification_settings')
+      .select('telegram_bot_token, telegram_chat_id')
+      .eq('id', true)
+      .single();
+
+    if (!settings?.telegram_bot_token || !settings?.telegram_chat_id) return;
+
+    await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
+      body: JSON.stringify({ chat_id: settings.telegram_chat_id, text: message, parse_mode: 'HTML' }),
     });
-    return res.ok;
   } catch {
-    return false;
+    // Optional feature — swallow errors so notification delivery never
+    // breaks the caller's main flow (activity completion, review decision).
   }
-}
-
-export async function sendTelegramMessages(chatIds: string[], text: string): Promise<void> {
-  const unique = Array.from(new Set(chatIds.filter(Boolean)));
-  await Promise.all(unique.map(id => sendTelegramMessage(id, text)));
 }

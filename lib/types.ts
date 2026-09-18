@@ -9,17 +9,12 @@ export interface Project {
   status: string;
   notes: string | null;
   expected_completion: string | null;
-  sales_division: string | null;
+  sales_division_id: string | null;
+  sales_person_name: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface SalesDivision {
-  id: string;
-  name: string;
-  sort_order: number;
-  created_at: string;
+  sales_divisions?: Pick<SalesDivision, 'id' | 'name' | 'code'>;
 }
 
 export interface ActivityCategory {
@@ -34,8 +29,38 @@ export interface ActivityCategory {
   evidence_min_count: number;
   gps_radius_m: number;
   gps_accuracy_threshold_m: number;
+  counts_as_demo: boolean;
+  counts_as_installation: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SalesDivision {
+  id: string;
+  code: string;
+  name: string;
+  sort_order: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NotificationSettings {
+  id: boolean;
+  telegram_bot_token: string | null;
+  telegram_chat_id: string | null;
+  notify_on_completion: boolean;
+  notify_on_review_decision: boolean;
+  updated_by: string | null;
+  updated_at: string;
+}
+
+export interface ActivityDiscountEligibility {
+  activity_id: string;
+  project_id: string;
+  demo_activity_id: string;
+  demo_completed_at: string;
+  days_since_demo: number;
 }
 
 export interface Activity {
@@ -53,8 +78,6 @@ export interface Activity {
   status: string;
   personnel_count: number;
   notes: string | null;
-  pic_name: string | null;
-  pic_phone: string | null;
   target_latitude: number | null;
   target_longitude: number | null;
   execution_latitude: number | null;
@@ -63,11 +86,13 @@ export interface Activity {
   gps_captured_at: string | null;
   distance_from_target_m: number | null;
   gps_validation_status: string | null;
+  pic_name: string | null;
+  pic_phone: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
-  activity_categories?: Pick<ActivityCategory, 'id' | 'name' | 'code' | 'requires_gps' | 'requires_evidence' | 'requires_personnel' | 'evidence_min_count' | 'gps_radius_m'>;
+  activity_categories?: Pick<ActivityCategory, 'id' | 'name' | 'code' | 'requires_gps' | 'requires_evidence' | 'requires_personnel' | 'evidence_min_count' | 'gps_radius_m' | 'counts_as_demo' | 'counts_as_installation'>;
   projects?: Pick<Project, 'id' | 'name' | 'code'>;
 }
 
@@ -110,8 +135,7 @@ export interface AppUser {
   full_name: string;
   role: string;
   phone: string | null;
-  telegram_chat_id: string | null;
-  sales_division: string | null;
   active: boolean;
   created_at: string;
+  updated_at: string;
 }

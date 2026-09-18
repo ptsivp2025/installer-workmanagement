@@ -1,57 +1,41 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, KeyRound, Loader2, Send } from 'lucide-react';
+import { Plus, Pencil, Power, Loader2, KeyRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
-import type { AppUser, SalesDivision } from '@/lib/types';
+import type { AppUser } from '@/lib/types';
 import { ROLES, roleLabel } from '@/lib/constants';
-import { formatDate } from '@/lib/utils';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
+import { AdminTabs } from '@/components/shared/AdminTabs';
 
 export default function AdminUsersPage() {
   const { user: me, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
-  const [divisions, setDivisions] = useState<SalesDivision[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [resetTarget, setResetTarget] = useState<AppUser | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<AppUser | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [{ data, error: err }, { data: divs }] = await Promise.all([
-      supabase.from('users').select('*').order('created_at', { ascending: false }),
-      supabase.from('sales_divisions').select('*').order('sort_order').order('name'),
-    ]);
+    const { data, error: err } = await supabase.from('users').select('*').order('full_name');
     if (err) setError(err.message);
     else setUsers((data as AppUser[]) ?? []);
-    setDivisions((divs as SalesDivision[]) ?? []);
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   async function toggleActive(u: AppUser) {
-    await supabase.from('users').update({ active: !u.active }).eq('id', u.id);
-    load();
-  }
-
-  async function changeRole(u: AppUser, role: string) {
-    await supabase.from('users').update({ role }).eq('id', u.id);
-    load();
-  }
-
-  async function changeDivision(u: AppUser, division: string) {
-    await supabase.from('users').update({ sales_division: division || null }).eq('id', u.id);
-    load();
-  }
-
-  async function updateTelegram(u: AppUser, chatId: string) {
-    await supabase.from('users').update({ telegram_chat_id: chatId || null }).eq('id', u.id);
-    load();
+    const res = await fetch(`/api/admin/users/${u.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: !u.active }),
+    });
+    if (res.ok) load();
   }
 
   if (authLoading) return <LoadingState />;
@@ -59,9 +43,11 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-slate-500">Accounts for installers, supervisors, reviewers, and admins.</p>
-        <button onClick={() => setCreateOpen(true)} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <AdminTabs />
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-sm text-slate-500">Manage platform accounts and roles.</p>
+        <button onClick={() => { setEditing(null); setFormOpen(true); }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
           <Plus className="h-4 w-4" /> New User
         </button>
       </div>
@@ -71,55 +57,32 @@ export default function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500 uppercase">
               <tr>
-                <th className="px-4 py-2.5">User</th>
+                <th className="px-4 py-2.5">Name</th>
+                <th className="px-4 py-2.5">Username</th>
                 <th className="px-4 py-2.5">Role</th>
-                <th className="px-4 py-2.5">Sales Division</th>
-                <th className="px-4 py-2.5">Telegram Chat ID</th>
+                <th className="px-4 py-2.5">Phone</th>
                 <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5">Joined</th>
                 <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {users.map(u => (
                 <tr key={u.id} className={u.active ? '' : 'opacity-50'}>
+                  <td className="px-4 py-3 font-medium text-slate-800">{u.full_name}</td>
+                  <td className="px-4 py-3 text-slate-500 font-mono text-xs">{u.username}</td>
+                  <td className="px-4 py-3 text-slate-600">{roleLabel(u.role)}</td>
+                  <td className="px-4 py-3 text-slate-500">{u.phone ?? '—'}</td>
                   <td className="px-4 py-3">
-                    <p className="font-medium text-slate-800">{u.full_name}</p>
-                    <p className="text-xs text-slate-400 font-mono">@{u.username}{u.phone ? ` · ${u.phone}` : ''}</p>
+                    <span className={`text-xs font-medium ${u.active ? 'text-emerald-600' : 'text-slate-400'}`}>{u.active ? 'Active' : 'Inactive'}</span>
                   </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={u.role}
-                      onChange={e => changeRole(u, e.target.value)}
+                  <td className="px-4 py-3 text-right space-x-2">
+                    <button onClick={() => { setEditing(u); setFormOpen(true); }} className="text-slate-400 hover:text-slate-700 inline-flex"><Pencil className="h-4 w-4" /></button>
+                    <button
+                      onClick={() => toggleActive(u)}
                       disabled={u.id === me.id}
-                      className="rounded-control border border-slate-300 px-2 py-1 text-xs disabled:opacity-50"
-                    >
-                      {ROLES.map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={u.sales_division ?? ''}
-                      onChange={e => changeDivision(u, e.target.value)}
-                      className="rounded-control border border-slate-300 px-2 py-1 text-xs"
-                    >
-                      <option value="">—</option>
-                      {divisions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3">
-                    <TelegramCell value={u.telegram_chat_id} onSave={v => updateTelegram(u, v)} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <button onClick={() => toggleActive(u)} disabled={u.id === me.id} className={`text-xs font-medium disabled:opacity-50 ${u.active ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {u.active ? 'Active' : 'Inactive'}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{formatDate(u.created_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => setResetTarget(u)} className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-700 text-xs">
-                      <KeyRound className="h-3.5 w-3.5" /> Reset password
-                    </button>
+                      title={u.id === me.id ? 'Cannot deactivate yourself' : u.active ? 'Deactivate' : 'Activate'}
+                      className="text-slate-400 hover:text-slate-700 inline-flex disabled:opacity-30"
+                    ><Power className="h-4 w-4" /></button>
                   </td>
                 </tr>
               ))}
@@ -128,95 +91,94 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      <CreateUserModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); load(); }} divisions={divisions} />
-      <ResetPasswordModal user={resetTarget} onClose={() => setResetTarget(null)} />
+      <UserFormModal open={formOpen} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); load(); }} user={editing} selfId={me.id} />
     </div>
   );
 }
 
-function TelegramCell({ value, onSave }: { value: string | null; onSave: (v: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [val, setVal] = useState(value ?? '');
-
-  if (!editing) {
-    return (
-      <button onClick={() => { setVal(value ?? ''); setEditing(true); }} className="text-xs text-slate-500 hover:text-brand-600">
-        {value || <span className="text-slate-300">Not linked</span>}
-      </button>
-    );
-  }
-  return (
-    <div className="flex items-center gap-1">
-      <input
-        autoFocus
-        value={val}
-        onChange={e => setVal(e.target.value)}
-        onBlur={() => { setEditing(false); onSave(val.trim()); }}
-        onKeyDown={e => { if (e.key === 'Enter') { setEditing(false); onSave(val.trim()); } }}
-        placeholder="e.g. 123456789"
-        className="w-28 rounded-control border border-slate-300 px-2 py-1 text-xs"
-      />
-    </div>
-  );
-}
-
-function CreateUserModal({ open, onClose, onCreated, divisions }: { open: boolean; onClose: () => void; onCreated: () => void; divisions: SalesDivision[] }) {
-  const [form, setForm] = useState({ username: '', full_name: '', role: 'installer', phone: '', password: '', sales_division: '' });
+function UserFormModal({
+  open, onClose, onSaved, user, selfId,
+}: { open: boolean; onClose: () => void; onSaved: () => void; user: AppUser | null; selfId: string }) {
+  const [form, setForm] = useState({ username: '', full_name: '', role: 'installer', phone: '', password: '', new_password: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) { setForm({ username: '', full_name: '', role: 'installer', phone: '', password: '', sales_division: '' }); setError(null); }
-  }, [open]);
+    if (!open) return;
+    if (user) {
+      setForm({ username: user.username, full_name: user.full_name, role: user.role, phone: user.phone ?? '', password: '', new_password: '' });
+    } else {
+      setForm({ username: '', full_name: '', role: 'installer', phone: '', password: '', new_password: '' });
+    }
+    setError(null);
+  }, [open, user]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.full_name.trim()) { setError('Full name is required.'); return; }
+    if (!user && (!form.username.trim() || form.password.length < 8)) {
+      setError('Username and a password of at least 8 characters are required for a new user.');
+      return;
+    }
     setSaving(true);
     setError(null);
-    const res = await fetch('/api/admin/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
+
+    const res = user
+      ? await fetch(`/api/admin/users/${user.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full_name: form.full_name.trim(), role: form.role, phone: form.phone.trim() || null, new_password: form.new_password || undefined }),
+        })
+      : await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: form.username.trim(), full_name: form.full_name.trim(), role: form.role, phone: form.phone.trim() || null, password: form.password }),
+        });
+
     setSaving(false);
-    if (!res.ok) { setError(data.error ?? 'Failed to create user.'); return; }
-    onCreated();
+    if (!res.ok) { const body = await res.json().catch(() => ({})); setError(body.error ?? 'Failed to save user.'); return; }
+    onSaved();
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New User">
+    <Modal open={open} onClose={onClose} title={user ? 'Edit User' : 'New User'}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
-        <Field label="Full Name">
-          <input required value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} className={inputCls} />
-        </Field>
-        <Field label="Username">
-          <input required value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} />
-        </Field>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Role">
-            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
-              {ROLES.map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
-            </select>
-          </Field>
-          <Field label="Phone">
-            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} />
-          </Field>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+          <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} className={inputCls} />
         </div>
-        <Field label="Sales Division (optional)">
-          <select value={form.sales_division} onChange={e => setForm(f => ({ ...f, sales_division: e.target.value }))} className={inputCls}>
-            <option value="">—</option>
-            {divisions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
+          <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} disabled={!!user} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+          <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls} disabled={user?.id === selfId}>
+            {ROLES.map(r => <option key={r} value={r}>{roleLabel(r)}</option>)}
           </select>
-        </Field>
-        <Field label="Temporary Password">
-          <input required type="text" minLength={8} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inputCls} placeholder="At least 8 characters" />
-        </Field>
+          {user?.id === selfId && <p className="text-xs text-slate-400 mt-1">You cannot change your own role.</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+          <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className={inputCls} />
+        </div>
+        {!user && (
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inputCls} placeholder="Min. 8 characters" />
+          </div>
+        )}
+        {user && (
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> Reset Password (optional)</label>
+            <input type="password" value={form.new_password} onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))} className={inputCls} placeholder="Leave blank to keep current password" />
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-2">
           <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
           <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-4 py-2 hover:bg-brand-700 disabled:opacity-60">
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Create User
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
           </button>
         </div>
       </form>
@@ -224,63 +186,4 @@ function CreateUserModal({ open, onClose, onCreated, divisions }: { open: boolea
   );
 }
 
-function ResetPasswordModal({ user, onClose }: { user: AppUser | null; onClose: () => void }) {
-  const [password, setPassword] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-
-  useEffect(() => { setPassword(''); setError(null); setDone(false); }, [user]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    setSaving(true);
-    setError(null);
-    const res = await fetch(`/api/admin/users/${user.id}/reset-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
-    });
-    const data = await res.json();
-    setSaving(false);
-    if (!res.ok) { setError(data.error ?? 'Failed to reset password.'); return; }
-    setDone(true);
-  }
-
-  return (
-    <Modal open={!!user} onClose={onClose} title={`Reset Password — ${user?.full_name ?? ''}`}>
-      {done ? (
-        <div className="text-center py-4">
-          <Send className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-          <p className="text-sm text-slate-600">Password updated. Share it with {user?.full_name} through a secure channel.</p>
-          <button onClick={onClose} className="mt-4 rounded-control bg-slate-900 text-white text-sm font-medium px-4 py-2">Done</button>
-        </div>
-      ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
-          <Field label="New Password">
-            <input required type="text" minLength={8} value={password} onChange={e => setPassword(e.target.value)} className={inputCls} placeholder="At least 8 characters" />
-          </Field>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
-            <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-4 py-2 hover:bg-brand-700 disabled:opacity-60">
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />} Set Password
-            </button>
-          </div>
-        </form>
-      )}
-    </Modal>
-  );
-}
-
-const inputCls = 'w-full rounded-control border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500';
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-      {children}
-    </div>
-  );
-}
+const inputCls = 'w-full rounded-control border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-400';

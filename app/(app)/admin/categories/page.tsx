@@ -7,6 +7,7 @@ import { useAuth } from '@/app/providers';
 import type { ActivityCategory } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
+import { AdminTabs } from '@/components/shared/AdminTabs';
 
 export default function AdminCategoriesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -50,8 +51,12 @@ export default function AdminCategoriesPage() {
 
   return (
     <div>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <AdminTabs />
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-slate-500">Categories are database-driven — no code change needed to add or retire one.</p>
+        <div>
+          <p className="text-sm text-slate-500 mt-0.5">Categories are database-driven — no code change needed to add or retire one.</p>
+        </div>
         <button onClick={() => { setEditing(null); setFormOpen(true); }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
           <Plus className="h-4 w-4" /> New Category
         </button>

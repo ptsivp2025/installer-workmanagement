@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle, BadgePercent } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
-import type { FormReview, ActivityPersonnel, ActivityEvidence } from '@/lib/types';
+import type { FormReview, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
@@ -20,6 +20,7 @@ export default function FormReviewDetailPage() {
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
   const [evidence, setEvidence] = useState<ActivityEvidence[]>([]);
   const { urls: photos, error: photosError, retry: retryPhotos } = useSignedUrls(evidence.map(e => e.thumbnail_path ?? e.storage_path));
+  const [discount, setDiscount] = useState<ActivityDiscountEligibility | null>(null);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export default function FormReviewDetailPage() {
     try {
       const { data: rev, error: err } = await supabase
         .from('form_reviews')
-        .select('*, activities(*, projects(id, name, code), activity_categories(name))')
+        .select('*, activities(*, projects(id, name, code), activity_categories(name, counts_as_installation))')
         .eq('id', id)
         .single();
       if (err) throw err;
@@ -47,6 +48,13 @@ export default function FormReviewDetailPage() {
       ]);
       setPersonnel((pers as ActivityPersonnel[]) ?? []);
       setEvidence((evid as ActivityEvidence[]) ?? []);
+
+      if (rev.activities?.activity_categories?.counts_as_installation) {
+        const { data: elig } = await supabase.from('activity_discount_eligibility').select('*').eq('activity_id', activityId).maybeSingle();
+        setDiscount((elig as ActivityDiscountEligibility) ?? null);
+      } else {
+        setDiscount(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load review.');
     } finally {
@@ -63,8 +71,9 @@ export default function FormReviewDetailPage() {
     setDeciding(null);
     if (err) { setDecisionError(err.message); return; }
     if (data?.status !== decision) { setDecisionError('Decision did not apply as expected. Please refresh and try again.'); return; }
-    fetch('/api/notifications/review-decided', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    fetch('/api/notifications/notify-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewId: id }),
     }).catch(() => {});
     await load();
@@ -118,6 +127,16 @@ export default function FormReviewDetailPage() {
           </div>
           <div className="text-slate-500 col-span-2">Completed {formatDateTime(activity.completed_at)}</div>
         </div>
+
+        {discount && (
+          <div className="mt-4 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5">
+            <BadgePercent className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              Eligible for demo discount — a Demo on this project completed {discount.days_since_demo} days earlier
+              ({formatDate(discount.demo_completed_at)}).
+            </span>
+          </div>
+        )}
 
         {personnel.length > 0 && (
           <div className="mt-4">
