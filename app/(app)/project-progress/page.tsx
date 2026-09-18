@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -11,6 +12,7 @@ import { SearchInput } from '@/components/shared/SearchInput';
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
 
 export default function ProjectProgressListPage() {
+  const { t } = useLanguage();
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, { total: number; completed: number; inProgress: number }>>({});
   const [search, setSearch] = useState('');
@@ -40,11 +42,11 @@ export default function ProjectProgressListPage() {
         setCounts(next);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load project progress.');
+      setError(e instanceof Error ? e.message : t('projectProgress.failedToLoad'));
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -52,22 +54,22 @@ export default function ProjectProgressListPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Project Progress</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Lifecycle overview across all active projects.</p>
+          <h1 className="text-xl font-semibold text-slate-900">{t('nav.projectProgress')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('projectProgress.subtitle')}</p>
         </div>
         <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="mb-4"><SearchInput value={search} onChange={setSearch} placeholder="Search project or code…" /></div>
+      <div className="mb-4"><SearchInput value={search} onChange={setSearch} placeholder={t('projectProgress.searchPlaceholder')} /></div>
 
       {loading ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : projects.length === 0 ? (
-        <EmptyState title="No active projects" />
+        <EmptyState title={t('projectProgress.noActiveProjects')} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map(p => {
@@ -86,10 +88,10 @@ export default function ProjectProgressListPage() {
                   <div className="h-full bg-brand-600 rounded-full" style={{ width: `${pct}%` }} />
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>{c.completed}/{c.total} completed · {c.inProgress} in progress</span>
+                  <span>{t('projectProgress.completedInProgress', { completed: c.completed, total: c.total, inProgress: c.inProgress })}</span>
                   <span>{pct}%</span>
                 </div>
-                {p.expected_completion && <p className="text-xs text-slate-400 mt-2">Target: {formatDate(p.expected_completion)}</p>}
+                {p.expected_completion && <p className="text-xs text-slate-400 mt-2">{t('projects.target')}: {formatDate(p.expected_completion)}</p>}
               </Link>
             );
           })}

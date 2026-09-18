@@ -6,10 +6,14 @@ import { supabase } from '@/lib/supabase';
 import { captureGeolocation, geoErrorMessage, type GeoReading } from '@/lib/geolocation';
 import { haversineMeters, formatDistance } from '@/lib/utils';
 import type { Activity } from '@/lib/types';
+import { useLanguage } from '@/app/providers';
+import type { Lang } from '@/lib/i18n';
+import { translate } from '@/lib/i18n';
 
 export function ExecutionPanel({
   activity, targetLat, targetLng, canAct, onChanged,
 }: { activity: Activity; targetLat: number | null; targetLng: number | null; canAct: boolean; onChanged: () => void }) {
+  const { t, lang } = useLanguage();
   const category = activity.activity_categories;
   const [reading, setReading] = useState<GeoReading | null>(null);
   const [capturing, setCapturing] = useState(false);
@@ -54,7 +58,7 @@ export function ExecutionPanel({
     setBusy(false);
     if (error) { setRpcError(error.message); return; }
     if (data?.blocked) {
-      setBlockReason(describeBlock(data));
+      setBlockReason(describeBlock(data, lang));
       return;
     }
     fetch('/api/notifications/notify-completion', {
@@ -70,10 +74,10 @@ export function ExecutionPanel({
       <div className="bg-emerald-50 border border-emerald-200 rounded-card p-5 flex items-center gap-3">
         <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
         <div>
-          <p className="font-medium text-emerald-800">Activity Completed</p>
+          <p className="font-medium text-emerald-800">{t('execution.activityCompleted')}</p>
           <p className="text-sm text-emerald-700">
             {activity.gps_validation_status === 'valid' && activity.distance_from_target_m != null &&
-              `GPS valid · ${formatDistance(activity.distance_from_target_m)} from target`}
+              `${t('execution.gpsValid')} · ${formatDistance(activity.distance_from_target_m)} ${t('formReview.fromTarget')}`}
           </p>
         </div>
       </div>
@@ -81,22 +85,22 @@ export function ExecutionPanel({
   }
 
   if (activity.status === 'cancelled') {
-    return <div className="bg-slate-100 border border-slate-200 rounded-card p-5 text-sm text-slate-500">This activity was cancelled.</div>;
+    return <div className="bg-slate-100 border border-slate-200 rounded-card p-5 text-sm text-slate-500">{t('execution.cancelled')}</div>;
   }
 
   return (
     <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
-      <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-3"><Navigation className="h-4 w-4" /> Execution</h3>
+      <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-3"><Navigation className="h-4 w-4" /> {t('execution.title')}</h3>
 
       {hasTarget && (
         <p className="text-xs text-slate-500 mb-3 flex items-center gap-1">
-          <MapPin className="h-3.5 w-3.5" /> Target: {targetLat!.toFixed(6)}, {targetLng!.toFixed(6)} · radius {radius}m
+          <MapPin className="h-3.5 w-3.5" /> {t('execution.targetLabel')}: {targetLat!.toFixed(6)}, {targetLng!.toFixed(6)} · {t('execution.radius')} {radius}m
         </p>
       )}
 
       {activity.status === 'scheduled' && canAct && (
         <button onClick={handleStart} disabled={busy} className="w-full mb-4 inline-flex items-center justify-center gap-2 rounded-control bg-brand-600 text-white font-medium py-3 hover:bg-brand-700 disabled:opacity-60">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />} Start Execution
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />} {t('execution.startExecution')}
         </button>
       )}
 
@@ -105,20 +109,20 @@ export function ExecutionPanel({
           <div className="rounded-control bg-slate-50 border border-slate-200 p-4 text-center">
             {reading ? (
               <>
-                <p className="text-sm font-semibold text-slate-800">📍 GPS Captured</p>
-                <p className="text-xs text-slate-500 mt-1">Accuracy ±{Math.round(reading.accuracy)}m</p>
+                <p className="text-sm font-semibold text-slate-800">📍 {t('execution.gpsCaptured')}</p>
+                <p className="text-xs text-slate-500 mt-1">{t('execution.accuracy')} ±{Math.round(reading.accuracy)}m</p>
                 {liveDistance != null && (
                   <p className={`text-sm mt-1 font-medium ${liveDistance <= radius ? 'text-emerald-600' : 'text-red-600'}`}>
-                    Distance: {formatDistance(liveDistance)} {liveDistance <= radius ? '(within radius)' : '(outside radius)'}
+                    {t('execution.distance')}: {formatDistance(liveDistance)} {liveDistance <= radius ? `(${t('execution.withinRadius')})` : `(${t('execution.outsideRadius')})`}
                   </p>
                 )}
               </>
             ) : (
-              <p className="text-sm text-slate-500">{requiresGps ? 'GPS capture required before completing.' : 'GPS capture optional for this category.'}</p>
+              <p className="text-sm text-slate-500">{requiresGps ? t('execution.gpsRequired') : t('execution.gpsOptional')}</p>
             )}
             <button onClick={handleCapture} disabled={capturing} className="mt-3 inline-flex items-center gap-1.5 rounded-control border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium hover:bg-slate-50 disabled:opacity-60">
               {capturing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Navigation className="h-4 w-4" />}
-              {reading ? 'Recapture GPS' : 'Capture GPS'}
+              {reading ? t('execution.recaptureGps') : t('execution.captureGps')}
             </button>
             {captureError && <p className="text-xs text-red-600 mt-2">{captureError}</p>}
           </div>
@@ -135,27 +139,27 @@ export function ExecutionPanel({
             disabled={busy || (requiresGps && !reading)}
             className="w-full inline-flex items-center justify-center gap-2 rounded-control bg-emerald-600 text-white font-semibold py-3.5 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} COMPLETE ACTIVITY
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {t('execution.completeActivity')}
           </button>
         </div>
       )}
 
       {!canAct && activity.status !== 'completed' && (
-        <p className="text-sm text-slate-400">You are not signed in to execute this activity.</p>
+        <p className="text-sm text-slate-400">{t('execution.notSignedIn')}</p>
       )}
     </div>
   );
 }
 
-function describeBlock(data: { reason?: string; validation_status?: string; distance_m?: number; radius_m?: number; evidence_count?: number; required?: number }): string {
+function describeBlock(data: { reason?: string; validation_status?: string; distance_m?: number; radius_m?: number; evidence_count?: number; required?: number }, lang: Lang): string {
   if (data.reason === 'gps') {
     if (data.validation_status === 'outside_radius') {
-      return `Completion blocked: you are ${formatDistance(data.distance_m)} from the target, outside the ${data.radius_m}m allowed radius.`;
+      return translate(lang, 'execution.blockedGpsRadius', { distance: formatDistance(data.distance_m), radius: data.radius_m ?? 0 });
     }
-    if (data.validation_status === 'low_accuracy') return 'Completion blocked: GPS accuracy is too low. Move to an open area and recapture.';
-    return 'Completion blocked: a valid GPS reading is required.';
+    if (data.validation_status === 'low_accuracy') return translate(lang, 'execution.blockedGpsAccuracy');
+    return translate(lang, 'execution.blockedGpsGeneric');
   }
-  if (data.reason === 'evidence') return `Completion blocked: ${data.evidence_count ?? 0} of ${data.required ?? 1} required photos uploaded.`;
-  if (data.reason === 'personnel') return 'Completion blocked: at least one personnel record is required.';
-  return 'Completion blocked.';
+  if (data.reason === 'evidence') return translate(lang, 'execution.blockedEvidence', { count: data.evidence_count ?? 0, required: data.required ?? 1 });
+  if (data.reason === 'personnel') return translate(lang, 'execution.blockedPersonnel');
+  return translate(lang, 'execution.blockedGeneric');
 }

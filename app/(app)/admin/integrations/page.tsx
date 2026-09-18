@@ -4,12 +4,13 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Send, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { AdminTabs } from '@/components/shared/AdminTabs';
 
 export default function AdminIntegrationsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { t, lang } = useLanguage();
   const [telegramConfigured, setTelegramConfigured] = useState(false);
   const [activeGroups, setActiveGroups] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -34,13 +35,13 @@ export default function AdminIntegrationsPage() {
   useEffect(() => { load(); }, [load]);
 
   if (authLoading) return <LoadingState />;
-  if (!user || user.role !== 'admin') return <ErrorState message="Only admins can access this page." />;
+  if (!user || user.role !== 'admin') return <ErrorState message={t('admin.onlyAdmins')} />;
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">{t('admin.panel')}</h1>
       <AdminTabs />
-      <p className="text-sm text-slate-500 mb-6">Third-party integrations connected to this platform.</p>
+      <p className="text-sm text-slate-500 mb-6">{t('adminIntegrations.subtitle')}</p>
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (
         <div className="max-w-lg space-y-3">
@@ -52,8 +53,8 @@ export default function AdminIntegrationsPage() {
                   <p className="font-medium text-slate-900">Telegram</p>
                   <p className="text-sm text-slate-500 mt-0.5">
                     {telegramConfigured
-                      ? `Bot configured · ${activeGroups} active notification group${activeGroups === 1 ? '' : 's'}`
-                      : 'Bot token not set — no alerts will be sent.'}
+                      ? `${t('adminIntegrations.botConfigured')} · ${activeGroups} ${t('adminIntegrations.activeGroups')}${lang === 'en' && activeGroups !== 1 ? 's' : ''}`
+                      : t('adminIntegrations.tokenNotSet')}
                   </p>
                 </div>
               </div>
@@ -62,7 +63,7 @@ export default function AdminIntegrationsPage() {
                 : <XCircle className="h-5 w-5 text-slate-300 shrink-0" />}
             </div>
           </Link>
-          <p className="text-xs text-slate-400 px-1">No other integrations are connected yet.</p>
+          <p className="text-xs text-slate-400 px-1">{t('adminIntegrations.noOthersConnected')}</p>
         </div>
       )}
     </div>

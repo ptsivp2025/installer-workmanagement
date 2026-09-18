@@ -1,8 +1,12 @@
+'use client';
+
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useLanguage } from '@/app/providers';
 
 export function Pagination({
   page, pageSize, total, onPageChange,
 }: { page: number; pageSize: number; total: number; onPageChange: (page: number) => void }) {
+  const { t } = useLanguage();
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
@@ -10,7 +14,7 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
       <p className="text-slate-500">
-        {total === 0 ? 'No results' : `Showing ${from}-${to} of ${total}`}
+        {total === 0 ? '—' : `${from}-${to} ${t('common.of')} ${total}`}
       </p>
       <div className="flex items-center gap-1">
         <button

@@ -1,22 +1,27 @@
-import { Loader2, AlertTriangle, Inbox, RefreshCw } from 'lucide-react';
+'use client';
 
-export function LoadingState({ label = 'Loading…' }: { label?: string }) {
+import { Loader2, AlertTriangle, Inbox, RefreshCw } from 'lucide-react';
+import { useLanguage } from '@/app/providers';
+
+export function LoadingState({ label }: { label?: string }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center py-16 text-slate-400">
       <Loader2 className="h-6 w-6 animate-spin mb-2" />
-      <p className="text-sm">{label}</p>
+      <p className="text-sm">{label ?? t('common.loading')}</p>
     </div>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center px-4">
       <AlertTriangle className="h-6 w-6 text-red-500 mb-2" />
       <p className="text-sm text-slate-600 max-w-sm">{message}</p>
       {onRetry && (
         <button onClick={onRetry} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
-          <RefreshCw className="h-3.5 w-3.5" /> Retry
+          <RefreshCw className="h-3.5 w-3.5" /> {t('common.retry')}
         </button>
       )}
     </div>

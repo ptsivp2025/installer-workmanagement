@@ -79,6 +79,9 @@ export interface ActivityDiscountEligibility {
   project_id: string;
   demo_activity_id: string;
   demo_completed_at: string;
+  demo_product_brand: string | null;
+  demo_product_type: string | null;
+  demo_product_model: string | null;
   days_since_demo: number;
 }
 
@@ -107,6 +110,9 @@ export interface Activity {
   gps_validation_status: string | null;
   pic_name: string | null;
   pic_phone: string | null;
+  product_brand: string | null;
+  product_type: string | null;
+  product_model: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -121,6 +127,7 @@ export interface ActivityPersonnel {
   user_id: string | null;
   name: string;
   role: string | null;
+  is_primary: boolean;
   created_at: string;
 }
 
@@ -155,7 +162,20 @@ export interface AppUser {
   role: string;
   phone: string | null;
   telegram_chat_id: string | null;
+  sales_division_id: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface SalesReview {
+  id: string;
+  activity_id: string;
+  status: string;
+  rating: number | null;
+  comment: string | null;
+  reviewer_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  activities?: Activity;
 }

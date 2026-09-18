@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getSession, verifySessionFromCookie, refreshDbTokenIfNeeded, type SessionUserProfile } from '@/lib/auth';
+import { getStoredLang, setStoredLang, translate, type Lang, type DictKey } from '@/lib/i18n';
 
 interface AuthContextValue {
   user: SessionUserProfile | null;
@@ -47,4 +48,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, refresh, setUserProfile: setUser }}>{children}</AuthContext.Provider>;
+}
+
+interface LanguageContextValue {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  t: (key: DictKey, vars?: Record<string, string | number>) => string;
+}
+
+const LanguageContext = createContext<LanguageContextValue>({
+  lang: 'id',
+  setLang: () => {},
+  t: (key) => key,
+});
+
+export function useLanguage(): LanguageContextValue {
+  return useContext(LanguageContext);
+}
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [lang, setLangState] = useState<Lang>('id');
+
+  useEffect(() => {
+    setLangState(getStoredLang());
+  }, []);
+
+  const setLang = useCallback((l: Lang) => {
+    setStoredLang(l);
+    setLangState(l);
+  }, []);
+
+  const t = useCallback((key: DictKey, vars?: Record<string, string | number>) => translate(lang, key, vars), [lang]);
+
+  return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
 }

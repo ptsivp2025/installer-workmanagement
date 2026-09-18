@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, BadgePercent, UserRound } from 'lucide-react';
+import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview, ActivityDiscountEligibility } from '@/lib/types';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -14,11 +14,13 @@ import { ActivityFormModal } from '../_components/ActivityFormModal';
 import { PersonnelPanel } from './_components/PersonnelPanel';
 import { EvidencePanel } from './_components/EvidencePanel';
 import { ExecutionPanel } from './_components/ExecutionPanel';
+import type { DictKey } from '@/lib/i18n';
 
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [activity, setActivity] = useState<Activity | null>(null);
   const [projectLatLng, setProjectLatLng] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
@@ -77,32 +79,33 @@ export default function ActivityDetailPage() {
         setDiscount(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load activity.');
+      setError(e instanceof Error ? e.message : t('activity.failedToLoad'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => { load(); }, [load]);
 
   async function handleCancel() {
-    if (!confirm('Cancel this activity? This cannot be undone from the UI.')) return;
+    if (!confirm(t('activity.cancelConfirm'))) return;
     const { error: err } = await supabase.rpc('iwm_set_activity_status', { p_activity_id: id, p_status: 'cancelled' });
     if (!err) load();
   }
 
   if (loading) return <LoadingState />;
-  if (error || !activity) return <ErrorState message={error ?? 'Activity not found.'} onRetry={load} />;
+  if (error || !activity) return <ErrorState message={error ?? t('activity.notFound')} onRetry={load} />;
 
   const canEditSchedule = user && ['admin', 'supervisor'].includes(user.role);
   const targetLat = activity.target_latitude ?? projectLatLng.lat;
   const targetLng = activity.target_longitude ?? projectLatLng.lng;
   const locked = activity.status === 'completed' || activity.status === 'cancelled';
+  const primaryPersonnel = personnel.find(p => p.is_primary) ?? null;
 
   return (
     <div className="max-w-3xl mx-auto">
       <button onClick={() => router.push('/request-schedule')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> Back to Request Schedule
+        <ArrowLeft className="h-4 w-4" /> {t('activity.backToRequestSchedule')}
       </button>
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
@@ -121,31 +124,46 @@ export default function ActivityDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-sm">
-          <InfoRow label="Project">
+          <InfoRow label={t('activity.project')}>
             <Link href={`/projects/${activity.project_id}`} className="text-brand-600 hover:underline">{activity.projects?.name}</Link>
           </InfoRow>
-          <InfoRow label="Customer">{activity.customer_name || '—'}</InfoRow>
-          <InfoRow label="Scheduled"><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{formatDate(activity.scheduled_date)}{activity.start_time ? ` · ${activity.start_time.slice(0, 5)}` : ''}</span></InfoRow>
-          <InfoRow label="Location"><span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{activity.location_address || '—'}</span></InfoRow>
-          <InfoRow label="Priority"><span className="capitalize">{activity.priority}</span></InfoRow>
-          <InfoRow label="Completed">{formatDateTime(activity.completed_at)}</InfoRow>
+          <InfoRow label={t('activity.customer')}>{activity.customer_name || '—'}</InfoRow>
+          <InfoRow label={t('activity.scheduled')}><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{formatDate(activity.scheduled_date)}{activity.start_time ? ` · ${activity.start_time.slice(0, 5)}` : ''}</span></InfoRow>
+          <InfoRow label={t('activity.location')}><span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{activity.location_address || '—'}</span></InfoRow>
+          <InfoRow label={t('activity.priority')}><span className="capitalize">{t(`priority.${activity.priority}` as DictKey)}</span></InfoRow>
+          <InfoRow label={t('activity.completed')}>{formatDateTime(activity.completed_at)}</InfoRow>
         </div>
 
-        {(activity.pic_name || activity.pic_phone) && (
+        {(activity.product_brand || activity.product_type) && (
           <div className="mt-3 flex items-center gap-1.5 text-sm text-slate-600">
+            <Package className="h-3.5 w-3.5 text-slate-400" />
+            {t('activity.productLabel')}: {[activity.product_brand, activity.product_type].filter(Boolean).join(' ')}
+            {activity.product_model && ` · ${activity.product_model}`}
+          </div>
+        )}
+
+        {primaryPersonnel && (
+          <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
+            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+            {t('activity.primaryPicLabel')}: {primaryPersonnel.name}
+          </div>
+        )}
+
+        {(activity.pic_name || activity.pic_phone) && (
+          <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
             <UserRound className="h-3.5 w-3.5 text-slate-400" />
-            PIC: {activity.pic_name || '—'}{activity.pic_phone && ` · ${activity.pic_phone}`}
+            {t('activity.picLabel')}: {activity.pic_name || '—'}{activity.pic_phone && ` · ${activity.pic_phone}`}
           </div>
         )}
 
         {discount && (
-          <div className="mt-3 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5">
-            <BadgePercent className="h-4 w-4 shrink-0 mt-0.5" />
+          <Link href={`/request-schedule/${discount.demo_activity_id}`} className="mt-3 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5 hover:bg-amber-100 transition">
+            <History className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              Eligible for demo discount — a Demo on this project completed {discount.days_since_demo} days earlier
-              ({formatDate(discount.demo_completed_at)}).
+              {t('activity.previousDemoFound', { product: [discount.demo_product_brand, discount.demo_product_type].filter(Boolean).join(' '), date: formatDate(discount.demo_completed_at) })}
+              <span className="block text-xs text-amber-700/80 mt-0.5">{t('activity.previousDemoHint')}</span>
             </span>
-          </div>
+          </Link>
         )}
 
         {activity.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{activity.notes}</p>}
@@ -153,14 +171,14 @@ export default function ActivityDetailPage() {
         {review && (
           <div className="mt-3 flex items-center gap-2 text-sm">
             <ClipboardCheck className="h-4 w-4 text-slate-400" />
-            <span className="text-slate-500">Form Review:</span>
+            <span className="text-slate-500">{t('activity.formReview')}:</span>
             <StatusBadge status={review.status} />
           </div>
         )}
 
         {canEditSchedule && !locked && (
           <button onClick={handleCancel} className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700">
-            <Ban className="h-3.5 w-3.5" /> Cancel Activity
+            <Ban className="h-3.5 w-3.5" /> {t('activity.cancelActivity')}
           </button>
         )}
       </div>

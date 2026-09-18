@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, ArrowUp, ArrowDown, Pencil, Power, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { ActivityCategory } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
@@ -11,6 +11,7 @@ import { AdminTabs } from '@/components/shared/AdminTabs';
 
 export default function AdminCategoriesPage() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,19 +47,19 @@ export default function AdminCategoriesPage() {
 
   if (authLoading) return <LoadingState />;
   if (!user || user.role !== 'admin') {
-    return <ErrorState message="Only admins can access this page." />;
+    return <ErrorState message={t('admin.onlyAdmins')} />;
   }
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">{t('admin.panel')}</h1>
       <AdminTabs />
       <div className="flex items-center justify-between mb-6">
         <div>
-          <p className="text-sm text-slate-500 mt-0.5">Categories are database-driven — no code change needed to add or retire one.</p>
+          <p className="text-sm text-slate-500 mt-0.5">{t('adminCategories.subtitle')}</p>
         </div>
         <button onClick={() => { setEditing(null); setFormOpen(true); }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
-          <Plus className="h-4 w-4" /> New Category
+          <Plus className="h-4 w-4" /> {t('adminCategories.newCategory')}
         </button>
       </div>
 
@@ -67,12 +68,12 @@ export default function AdminCategoriesPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500 uppercase">
               <tr>
-                <th className="px-4 py-2.5 w-16">Order</th>
-                <th className="px-4 py-2.5">Name</th>
-                <th className="px-4 py-2.5">Requires</th>
-                <th className="px-4 py-2.5">Radius</th>
-                <th className="px-4 py-2.5">Status</th>
-                <th className="px-4 py-2.5 text-right">Actions</th>
+                <th className="px-4 py-2.5 w-16">{t('adminCategories.order')}</th>
+                <th className="px-4 py-2.5">{t('common.name')}</th>
+                <th className="px-4 py-2.5">{t('adminCategories.requires')}</th>
+                <th className="px-4 py-2.5">{t('adminCategories.radius')}</th>
+                <th className="px-4 py-2.5">{t('common.status')}</th>
+                <th className="px-4 py-2.5 text-right">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -89,17 +90,17 @@ export default function AdminCategoriesPage() {
                     <p className="text-xs text-slate-400 font-mono">{c.code}</p>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500 space-x-1">
-                    {c.requires_gps && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">GPS</span>}
-                    {c.requires_evidence && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">Evidence ≥{c.evidence_min_count}</span>}
-                    {c.requires_personnel && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">Personnel</span>}
+                    {c.requires_gps && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">{t('adminCategories.gps')}</span>}
+                    {c.requires_evidence && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">{t('adminCategories.evidenceCount', { count: c.evidence_min_count })}</span>}
+                    {c.requires_personnel && <span className="inline-block rounded bg-slate-100 px-1.5 py-0.5">{t('adminCategories.personnel')}</span>}
                   </td>
                   <td className="px-4 py-3 text-slate-500">{c.requires_gps ? `${c.gps_radius_m}m` : '—'}</td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${c.active ? 'text-emerald-600' : 'text-slate-400'}`}>{c.active ? 'Active' : 'Inactive'}</span>
+                    <span className={`text-xs font-medium ${c.active ? 'text-emerald-600' : 'text-slate-400'}`}>{c.active ? t('common.active') : t('common.inactive')}</span>
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button onClick={() => { setEditing(c); setFormOpen(true); }} className="text-slate-400 hover:text-slate-700 inline-flex"><Pencil className="h-4 w-4" /></button>
-                    <button onClick={() => toggleActive(c)} title={c.active ? 'Deactivate' : 'Activate'} className="text-slate-400 hover:text-slate-700 inline-flex"><Power className="h-4 w-4" /></button>
+                    <button onClick={() => toggleActive(c)} title={c.active ? t('common.deactivate') : t('common.activate')} className="text-slate-400 hover:text-slate-700 inline-flex"><Power className="h-4 w-4" /></button>
                   </td>
                 </tr>
               ))}
@@ -116,6 +117,7 @@ export default function AdminCategoriesPage() {
 function CategoryFormModal({
   open, onClose, onSaved, category, nextSortOrder,
 }: { open: boolean; onClose: () => void; onSaved: () => void; category: ActivityCategory | null; nextSortOrder: number }) {
+  const { t } = useLanguage();
   const [form, setForm] = useState({
     code: '', name: '', requires_gps: true, requires_evidence: true, requires_personnel: true,
     evidence_min_count: 1, gps_radius_m: 100, gps_accuracy_threshold_m: 100,
@@ -140,7 +142,7 @@ function CategoryFormModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.code.trim() || !form.name.trim()) { setError('Code and name are required.'); return; }
+    if (!form.code.trim() || !form.name.trim()) { setError(t('projects.codeNameRequired')); return; }
     setSaving(true);
     setError(null);
     const payload = { ...form, code: form.code.trim().toLowerCase().replace(/\s+/g, '_'), name: form.name.trim() };
@@ -153,44 +155,44 @@ function CategoryFormModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={category ? 'Edit Category' : 'New Category'}>
+    <Modal open={open} onClose={onClose} title={category ? t('adminCategories.editCategory') : t('adminCategories.newCategory')}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
-          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="e.g. Instalasi Demo" />
+          <label className="block text-sm font-medium text-slate-700 mb-1">{t('common.name')}</label>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder={t('adminCategories.namePlaceholder')} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Code</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminCategories.code')}</label>
           <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} className={inputCls} placeholder="instalasi_demo" disabled={!!category} />
         </div>
         <div className="space-y-2">
-          <Toggle label="Requires GPS validation" checked={form.requires_gps} onChange={v => setForm(f => ({ ...f, requires_gps: v }))} />
+          <Toggle label={t('adminCategories.requiresGps')} checked={form.requires_gps} onChange={v => setForm(f => ({ ...f, requires_gps: v }))} />
           {form.requires_gps && (
             <div className="pl-6 flex gap-4">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">GPS radius (meters)</label>
+                <label className="block text-xs text-slate-500 mb-1">{t('adminCategories.gpsRadius')}</label>
                 <input type="number" min={1} value={form.gps_radius_m} onChange={e => setForm(f => ({ ...f, gps_radius_m: Number(e.target.value) }))} className={`${inputCls} w-32`} />
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Max accuracy allowed (meters)</label>
+                <label className="block text-xs text-slate-500 mb-1">{t('adminCategories.maxAccuracy')}</label>
                 <input type="number" min={1} value={form.gps_accuracy_threshold_m} onChange={e => setForm(f => ({ ...f, gps_accuracy_threshold_m: Number(e.target.value) }))} className={`${inputCls} w-32`} />
               </div>
             </div>
           )}
-          <Toggle label="Requires photo evidence" checked={form.requires_evidence} onChange={v => setForm(f => ({ ...f, requires_evidence: v }))} />
+          <Toggle label={t('adminCategories.requiresEvidence')} checked={form.requires_evidence} onChange={v => setForm(f => ({ ...f, requires_evidence: v }))} />
           {form.requires_evidence && (
             <div className="pl-6">
-              <label className="block text-xs text-slate-500 mb-1">Minimum photo count</label>
+              <label className="block text-xs text-slate-500 mb-1">{t('adminCategories.minPhotoCount')}</label>
               <input type="number" min={0} value={form.evidence_min_count} onChange={e => setForm(f => ({ ...f, evidence_min_count: Number(e.target.value) }))} className={`${inputCls} w-32`} />
             </div>
           )}
-          <Toggle label="Requires personnel record" checked={form.requires_personnel} onChange={v => setForm(f => ({ ...f, requires_personnel: v }))} />
+          <Toggle label={t('adminCategories.requiresPersonnel')} checked={form.requires_personnel} onChange={v => setForm(f => ({ ...f, requires_personnel: v }))} />
         </div>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">{t('common.cancel')}</button>
           <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-4 py-2 hover:bg-brand-700 disabled:opacity-60">
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} {t('common.save')}
           </button>
         </div>
       </form>

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle, BadgePercent } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle, History, Package, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { FormReview, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -16,6 +16,7 @@ export default function FormReviewDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [review, setReview] = useState<FormReview | null>(null);
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
   const [evidence, setEvidence] = useState<ActivityEvidence[]>([]);
@@ -63,11 +64,11 @@ export default function FormReviewDetailPage() {
         setDiscount(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load review.');
+      setError(e instanceof Error ? e.message : t('formReview.failedToLoad'));
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -77,7 +78,7 @@ export default function FormReviewDetailPage() {
     const { data, error: err } = await supabase.rpc('iwm_review_activity', { p_review_id: id, p_decision: decision, p_notes: notes.trim() || null });
     setDeciding(null);
     if (err) { setDecisionError(err.message); return; }
-    if (data?.status !== decision) { setDecisionError('Decision did not apply as expected. Please refresh and try again.'); return; }
+    if (data?.status !== decision) { setDecisionError(t('formReview.decisionError')); return; }
     fetch('/api/notifications/notify-review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +88,7 @@ export default function FormReviewDetailPage() {
   }
 
   async function handleReopen() {
-    if (!confirm('Reopen this activity for correction? It will go back to "in progress" and a new review will be created once resubmitted.')) return;
+    if (!confirm(t('formReview.reopenConfirm'))) return;
     setReopening(true);
     setDecisionError(null);
     const { error: err } = await supabase.rpc('iwm_reopen_activity', { p_activity_id: review!.activity_id });
@@ -97,7 +98,7 @@ export default function FormReviewDetailPage() {
   }
 
   if (loading) return <LoadingState />;
-  if (error || !review) return <ErrorState message={error ?? 'Review not found.'} onRetry={load} />;
+  if (error || !review) return <ErrorState message={error ?? t('formReview.notFound')} onRetry={load} />;
 
   const activity = review.activities!;
   const canDecide = user && ['admin', 'supervisor', 'reviewer'].includes(user.role) && review.status === 'pending';
@@ -106,7 +107,7 @@ export default function FormReviewDetailPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <button onClick={() => router.push('/form-review')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> Back to Form Review
+        <ArrowLeft className="h-4 w-4" /> {t('formReview.backToFormReview')}
       </button>
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
@@ -123,45 +124,62 @@ export default function FormReviewDetailPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 mt-4 text-sm">
-          <div className="flex items-center gap-1.5 text-slate-600"><Users className="h-4 w-4 text-slate-400" />{personnel.length} people</div>
-          <div className="flex items-center gap-1.5 text-slate-600"><Camera className="h-4 w-4 text-slate-400" />{evidence.length} photos</div>
+          <div className="flex items-center gap-1.5 text-slate-600"><Users className="h-4 w-4 text-slate-400" />{personnel.length} {t('formReview.people')}</div>
+          <div className="flex items-center gap-1.5 text-slate-600"><Camera className="h-4 w-4 text-slate-400" />{evidence.length} {t('formReview.photos')}</div>
           <div className="flex items-center gap-1.5 text-slate-600 col-span-2">
             <Navigation className="h-4 w-4 text-slate-400" />
             {activity.gps_validation_status ? (
-              <>GPS {activity.gps_validation_status === 'valid' ? 'valid' : activity.gps_validation_status.replace('_', ' ')}
-                {activity.distance_from_target_m != null && ` · ${formatDistance(activity.distance_from_target_m)} from target`}</>
-            ) : 'GPS not required'}
+              <>{t('formReview.gpsPrefix')} {activity.gps_validation_status === 'valid' ? t('formReview.valid') : activity.gps_validation_status.replace('_', ' ')}
+                {activity.distance_from_target_m != null && ` · ${formatDistance(activity.distance_from_target_m)} ${t('formReview.fromTarget')}`}</>
+            ) : t('formReview.gpsNotRequired')}
           </div>
-          <div className="text-slate-500 col-span-2">Completed {formatDateTime(activity.completed_at)}</div>
+          <div className="text-slate-500 col-span-2">{t('formReview.completed')} {formatDateTime(activity.completed_at)}</div>
         </div>
 
-        {discount && (
-          <div className="mt-4 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5">
-            <BadgePercent className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>
-              Eligible for demo discount — a Demo on this project completed {discount.days_since_demo} days earlier
-              ({formatDate(discount.demo_completed_at)}).
-            </span>
+        {(activity.product_brand || activity.product_type) && (
+          <div className="mt-4 flex items-center gap-1.5 text-sm text-slate-600">
+            <Package className="h-4 w-4 text-slate-400" />
+            {t('activity.productLabel')}: {[activity.product_brand, activity.product_type].filter(Boolean).join(' ')}
+            {activity.product_model && ` · ${activity.product_model}`}
           </div>
+        )}
+
+        {discount && (
+          <Link href={`/request-schedule/${discount.demo_activity_id}`} className="mt-4 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5 hover:bg-amber-100 transition">
+            <History className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              {t('activity.previousDemoFound', { product: [discount.demo_product_brand, discount.demo_product_type].filter(Boolean).join(' '), date: formatDate(discount.demo_completed_at) })}
+            </span>
+          </Link>
         )}
 
         {personnel.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-400 mb-1.5">PERSONNEL</p>
-            <ul className="text-sm text-slate-700 space-y-0.5">
-              {personnel.map((p, i) => <li key={p.id}>{i + 1}. {p.name}{p.role && <span className="text-slate-400"> — {p.role}</span>}</li>)}
-            </ul>
+            <p className="text-xs font-medium text-slate-400 mb-1.5">{t('activity.primaryPicLabel').toUpperCase()}</p>
+            {personnel.filter(p => p.is_primary).map(p => (
+              <p key={p.id} className="text-sm text-slate-800 font-medium inline-flex items-center gap-1.5">
+                <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" /> {p.name}{p.role && <span className="text-slate-400 font-normal"> — {p.role}</span>}
+              </p>
+            ))}
+            {personnel.filter(p => !p.is_primary).length > 0 && (
+              <>
+                <p className="text-xs font-medium text-slate-400 mb-1.5 mt-2">{t('activity.supportTeamLabel').toUpperCase()}</p>
+                <ul className="text-sm text-slate-700 space-y-0.5">
+                  {personnel.filter(p => !p.is_primary).map(p => <li key={p.id}>{p.name}{p.role && <span className="text-slate-400"> — {p.role}</span>}</li>)}
+                </ul>
+              </>
+            )}
           </div>
         )}
 
         {evidence.length > 0 && (
           <div className="mt-4">
-            <p className="text-xs font-medium text-slate-400 mb-1.5">EVIDENCE</p>
+            <p className="text-xs font-medium text-slate-400 mb-1.5">{t('formReview.evidenceLabel')}</p>
             {photosError && (
               <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-control px-3 py-1.5 mb-2">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                <span className="flex-1">Could not load photo previews.</span>
-                <button onClick={retryPhotos} className="font-medium underline">Retry</button>
+                <span className="flex-1">{t('evidence.couldNotLoadPreviews')}</span>
+                <button onClick={retryPhotos} className="font-medium underline">{t('evidence.retry')}</button>
               </div>
             )}
             <div className="grid grid-cols-4 gap-2">
@@ -180,13 +198,13 @@ export default function FormReviewDetailPage() {
 
       {review.status !== 'pending' && (
         <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4 text-sm">
-          <p className="text-slate-500">Decision: <StatusBadge status={review.status} /></p>
+          <p className="text-slate-500">{t('formReview.decision')}: <StatusBadge status={review.status} /></p>
           {review.notes && <p className="text-slate-700 mt-2">{review.notes}</p>}
           <p className="text-slate-400 mt-2">{formatDateTime(review.reviewed_at)}</p>
           {decisionError && <p className="text-sm text-red-600 mt-3">{decisionError}</p>}
           {canReopen && (
             <button onClick={handleReopen} disabled={reopening} className="mt-3 inline-flex items-center gap-1.5 rounded-control border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60">
-              {reopening ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Reopen for Correction
+              {reopening ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} {t('formReview.reopenForCorrection')}
             </button>
           )}
         </div>
@@ -194,15 +212,15 @@ export default function FormReviewDetailPage() {
 
       {canDecide && (
         <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
-          <label className="block text-sm font-medium text-slate-700 mb-1.5">Review Notes</label>
-          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full rounded-control border border-slate-300 px-3 py-2 text-sm mb-4" placeholder="Optional notes for the field team…" />
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('formReview.reviewNotes')}</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full rounded-control border border-slate-300 px-3 py-2 text-sm mb-4" placeholder={t('formReview.notesPlaceholder')} />
           {decisionError && <p className="text-sm text-red-600 mb-3">{decisionError}</p>}
           <div className="flex gap-2">
             <button onClick={() => handleDecision('rejected')} disabled={!!deciding} className="flex-1 inline-flex items-center justify-center gap-2 rounded-control border border-red-200 text-red-600 font-medium py-2.5 hover:bg-red-50 disabled:opacity-60">
-              {deciding === 'rejected' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Reject
+              {deciding === 'rejected' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} {t('formReview.reject')}
             </button>
             <button onClick={() => handleDecision('approved')} disabled={!!deciding} className="flex-1 inline-flex items-center justify-center gap-2 rounded-control bg-emerald-600 text-white font-medium py-2.5 hover:bg-emerald-700 disabled:opacity-60">
-              {deciding === 'approved' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Approve
+              {deciding === 'approved' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {t('formReview.approve')}
             </button>
           </div>
         </div>

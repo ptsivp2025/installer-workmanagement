@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, MapPin, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
 import { PROJECT_STATUSES } from '@/lib/constants';
 import { formatDate } from '@/lib/utils';
@@ -13,11 +13,13 @@ import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
 import { ProjectFormModal } from './_components/ProjectFormModal';
+import type { DictKey } from '@/lib/i18n';
 
 const PAGE_SIZE = 15;
 
 export default function ProjectsPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, { total: number; completed: number }>>({});
   const [total, setTotal] = useState(0);
@@ -75,21 +77,21 @@ export default function ProjectsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
-          <p className="text-sm text-slate-500 mt-0.5">The parent record every activity belongs to.</p>
+          <h1 className="text-xl font-semibold text-slate-900">{t('nav.projects')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('projects.subtitle')}</p>
         </div>
         {canCreate && (
           <button onClick={() => setFormOpen(true)} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
-            <Plus className="h-4 w-4" /> New Project
+            <Plus className="h-4 w-4" /> {t('projects.newProject')}
           </button>
         )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder="Search project, code, or customer…" /></div>
+        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder={t('projects.searchPlaceholder')} /></div>
         <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
-          <option value="">All statuses</option>
-          {PROJECT_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          <option value="">{t('common.allStatuses')}</option>
+          {PROJECT_STATUSES.map(s => <option key={s} value={s}>{t(`status.${s}` as DictKey)}</option>)}
         </select>
         <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
@@ -102,7 +104,7 @@ export default function ProjectsPage() {
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
         ) : projects.length === 0 ? (
-          <EmptyState title="No projects yet" description="Create a project to start scheduling activities under it." />
+          <EmptyState title={t('projects.noProjectsYet')} description={t('projects.noProjectsDescription')} />
         ) : (
           <>
             <div className="divide-y divide-slate-100">
@@ -121,7 +123,7 @@ export default function ProjectsPage() {
                       </p>
                     </div>
                     <div className="hidden sm:block text-sm text-slate-500 w-32 shrink-0">
-                      {c.completed}/{c.total} activities
+                      {c.completed}/{c.total} {t('projects.activities')}
                     </div>
                     <div className="hidden sm:block text-sm text-slate-400 w-28 shrink-0">{formatDate(p.expected_completion)}</div>
                     <StatusBadge status={p.status} />

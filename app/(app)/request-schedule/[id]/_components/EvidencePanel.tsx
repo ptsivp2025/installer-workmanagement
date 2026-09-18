@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Trash2, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { ActivityEvidence } from '@/lib/types';
 import { uploadEvidencePhoto, deleteEvidencePhoto } from '@/lib/evidence';
 import { useSignedUrls } from '@/lib/useSignedUrls';
@@ -12,6 +12,7 @@ export function EvidencePanel({
   activityId, projectId, evidence, locked, minRequired, onChanged,
 }: { activityId: string; projectId: string; evidence: ActivityEvidence[]; locked: boolean; minRequired: number; onChanged: () => void }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const { urls: thumbs, error: thumbsError, retry: retryThumbs } = useSignedUrls(evidence.map(e => e.thumbnail_path ?? e.storage_path));
   const [uploading, setUploading] = useState(false);
@@ -38,8 +39,8 @@ export function EvidencePanel({
         failedHere.push(file);
         setUploadError(
           files.length === 1
-            ? (e instanceof Error ? e.message : 'Upload failed. Please try again.')
-            : `${failedHere.length} of ${files.length} photos failed to upload. Please retry.`,
+            ? (e instanceof Error ? e.message : t('evidence.uploadFailed'))
+            : t('evidence.someFailed', { failed: failedHere.length, total: files.length }),
         );
       }
     }
@@ -60,7 +61,7 @@ export function EvidencePanel({
     try {
       await deleteEvidencePhoto(item.storage_path, item.thumbnail_path);
     } catch {
-      setUploadError('Could not delete the photo file. Please try again.');
+      setUploadError(t('evidence.deleteFailed'));
       return;
     }
     const { error: err } = await supabase.from('activity_evidence').delete().eq('id', item.id);
@@ -73,22 +74,22 @@ export function EvidencePanel({
   return (
     <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-slate-900 flex items-center gap-2"><Camera className="h-4 w-4" /> Evidence</h3>
+        <h3 className="font-semibold text-slate-900 flex items-center gap-2"><Camera className="h-4 w-4" /> {t('evidence.title')}</h3>
         <span className={`text-sm font-medium ${evidence.length < minRequired ? 'text-amber-600' : 'text-slate-500'}`}>
-          {evidence.length} photo{evidence.length === 1 ? '' : 's'}{minRequired > 0 ? ` (min ${minRequired})` : ''}
+          {evidence.length} {evidence.length === 1 ? t('evidence.photo') : t('evidence.photos2')}{minRequired > 0 ? ` (${t('evidence.min')} ${minRequired})` : ''}
         </span>
       </div>
 
       {evidence.length === 0 ? (
-        <p className="text-sm text-slate-400 py-3">No evidence uploaded yet.</p>
+        <p className="text-sm text-slate-400 py-3">{t('evidence.noneUploaded')}</p>
       ) : (
         <>
           {thumbsError && (
             <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-control px-3 py-1.5 mb-2">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              <span className="flex-1">Could not load photo previews.</span>
+              <span className="flex-1">{t('evidence.couldNotLoadPreviews')}</span>
               <button onClick={retryThumbs} className="inline-flex items-center gap-1 font-medium underline">
-                <RefreshCw className="h-3 w-3" /> Retry
+                <RefreshCw className="h-3 w-3" /> {t('evidence.retry')}
               </button>
             </div>
           )}
@@ -120,7 +121,7 @@ export function EvidencePanel({
           <span className="flex-1">{uploadError}</span>
           {retryFiles && (
             <button onClick={() => uploadFiles(retryFiles)} className="underline font-medium shrink-0">
-              Retry
+              {t('evidence.retry')}
             </button>
           )}
         </div>
@@ -129,7 +130,7 @@ export function EvidencePanel({
       {!locked && (
         <label className="inline-flex items-center gap-2 rounded-control border border-dashed border-slate-300 px-4 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer">
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-          {uploading ? `Uploading${uploadProgress ? ` ${uploadProgress.done + 1}/${uploadProgress.total}` : '…'}` : 'Add Photos'}
+          {uploading ? (uploadProgress ? t('evidence.uploadingProgress', { done: uploadProgress.done + 1, total: uploadProgress.total }) : t('evidence.uploading')) : t('evidence.addPhotos')}
           <input
             ref={inputRef}
             type="file"

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Save } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { AdminTabs } from '@/components/shared/AdminTabs';
@@ -12,6 +12,7 @@ const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'];
 
 export default function AdminSettingsPage() {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const [settings, setSettings] = useState<PlatformSettings | null>(null);
   const [form, setForm] = useState({ company_name: '', logo_url: '', timezone: '', date_format: 'DD/MM/YYYY', show_dashboard_category_breakdown: true });
   const [loading, setLoading] = useState(true);
@@ -36,7 +37,7 @@ export default function AdminSettingsPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.company_name.trim()) { setError('Company name is required.'); return; }
+    if (!form.company_name.trim()) { setError(t('adminSettings.companyNameRequired')); return; }
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -55,35 +56,35 @@ export default function AdminSettingsPage() {
   }
 
   if (authLoading) return <LoadingState />;
-  if (!user || user.role !== 'admin') return <ErrorState message="Only admins can access this page." />;
+  if (!user || user.role !== 'admin') return <ErrorState message={t('admin.onlyAdmins')} />;
 
   return (
     <div>
-      <h1 className="text-xl font-semibold text-slate-900 mb-1">Admin Panel</h1>
+      <h1 className="text-xl font-semibold text-slate-900 mb-1">{t('admin.panel')}</h1>
       <AdminTabs />
-      <p className="text-sm text-slate-500 mb-6">Company identity shown across the app (sidebar branding).</p>
+      <p className="text-sm text-slate-500 mb-6">{t('adminSettings.subtitle')}</p>
 
       {loading ? <LoadingState /> : error && !settings ? <ErrorState message={error} onRetry={load} /> : (
         <form onSubmit={handleSave} className="bg-white rounded-card border border-slate-200 shadow-card p-5 max-w-lg space-y-4">
           {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
-          {saved && <div className="rounded-control bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-3 py-2">Saved.</div>}
+          {saved && <div className="rounded-control bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-3 py-2">{t('common.saved')}</div>}
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Company Name</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.companyName')}</label>
             <input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Logo URL</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.logoUrl')}</label>
             <input value={form.logo_url} onChange={e => setForm(f => ({ ...f, logo_url: e.target.value }))} className={inputCls} placeholder="https://…/logo.png" />
-            <p className="text-xs text-slate-400 mt-1">Leave blank to use the default lettermark. Paste a hosted image URL.</p>
+            <p className="text-xs text-slate-400 mt-1">{t('adminSettings.logoHint')}</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Timezone</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.timezone')}</label>
               <input value={form.timezone} onChange={e => setForm(f => ({ ...f, timezone: e.target.value }))} className={inputCls} placeholder="Asia/Jakarta" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date Format</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.dateFormat')}</label>
               <select value={form.date_format} onChange={e => setForm(f => ({ ...f, date_format: e.target.value }))} className={inputCls}>
                 {DATE_FORMATS.map(f => <option key={f} value={f}>{f}</option>)}
               </select>
@@ -92,7 +93,7 @@ export default function AdminSettingsPage() {
 
           <div className="pt-2 border-t border-slate-100">
             <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm text-slate-700">Show category breakdown on Dashboard</span>
+              <span className="text-sm text-slate-700">{t('adminSettings.showCategoryBreakdown')}</span>
               <button
                 type="button"
                 onClick={() => setForm(f => ({ ...f, show_dashboard_category_breakdown: !f.show_dashboard_category_breakdown }))}
@@ -105,7 +106,7 @@ export default function AdminSettingsPage() {
 
           <div className="flex justify-end pt-2">
             <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-4 py-2 hover:bg-brand-700 disabled:opacity-60">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Settings
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {t('adminSettings.saveSettings')}
             </button>
           </div>
         </form>

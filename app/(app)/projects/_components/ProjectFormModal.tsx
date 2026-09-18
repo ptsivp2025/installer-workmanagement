@@ -2,16 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
 import { LocationPicker } from '@/components/shared/LocationPicker';
 import type { Project, SalesDivision } from '@/lib/types';
+import type { DictKey } from '@/lib/i18n';
 import { Loader2 } from 'lucide-react';
 
 export function ProjectFormModal({
   open, onClose, onSaved, project,
 }: { open: boolean; onClose: () => void; onSaved: () => void; project?: Project | null }) {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [divisions, setDivisions] = useState<SalesDivision[]>([]);
   const [form, setForm] = useState({
     code: '', name: '', address: '', latitude: '', longitude: '',
@@ -44,8 +46,8 @@ export function ProjectFormModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim() || !form.code.trim()) { setError('Code and name are required.'); return; }
-    if (!form.sales_division_id) { setError('Sales Division is required.'); return; }
+    if (!form.name.trim() || !form.code.trim()) { setError(t('projects.codeNameRequired')); return; }
+    if (!form.sales_division_id) { setError(t('projects.divisionRequired')); return; }
     setSaving(true);
     setError(null);
 
@@ -74,30 +76,30 @@ export function ProjectFormModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={project ? 'Edit Project' : 'New Project'} wide>
+    <Modal open={open} onClose={onClose} title={project ? t('projects.editProject') : t('projects.newProject')} wide>
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Project Code" required>
+          <Field label={t('projects.projectCode')} required>
             <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} className={inputCls} />
           </Field>
-          <Field label="Status">
+          <Field label={t('common.status')}>
             <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} className={inputCls}>
-              {['active', 'on_hold', 'completed', 'cancelled'].map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+              {(['active', 'on_hold', 'completed', 'cancelled'] as const).map(s => <option key={s} value={s}>{t(`status.${s}` as DictKey)}</option>)}
             </select>
           </Field>
         </div>
-        <Field label="Project Name" required>
+        <Field label={t('projects.projectName')} required>
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="e.g. ABC Hotel" />
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Customer / Company (Sales Division)" required>
+          <Field label={t('projects.customerCompany')} required>
             <select value={form.sales_division_id} onChange={e => setForm(f => ({ ...f, sales_division_id: e.target.value }))} className={inputCls}>
-              <option value="">Select customer/company…</option>
+              <option value="">{t('projects.selectCustomer')}</option>
               {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </Field>
-          <Field label="Sales Person Name">
+          <Field label={t('projects.salesPersonName')}>
             <input value={form.sales_person_name} onChange={e => setForm(f => ({ ...f, sales_person_name: e.target.value }))} className={inputCls} placeholder="e.g. Budi" />
           </Field>
         </div>
@@ -107,16 +109,16 @@ export function ProjectFormModal({
           longitude={form.longitude}
           onChange={(address, latitude, longitude) => setForm(f => ({ ...f, address, latitude, longitude }))}
         />
-        <Field label="Expected Completion">
+        <Field label={t('projects.expectedCompletion')}>
           <input type="date" value={form.expected_completion} onChange={e => setForm(f => ({ ...f, expected_completion: e.target.value }))} className={inputCls} />
         </Field>
-        <Field label="Notes">
+        <Field label={t('common.notes')}>
           <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className={inputCls} rows={3} />
         </Field>
         <div className="flex justify-end gap-2 pt-2">
-          <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancel</button>
+          <button type="button" onClick={onClose} className="rounded-control px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">{t('common.cancel')}</button>
           <button type="submit" disabled={saving} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-4 py-2 hover:bg-brand-700 disabled:opacity-60">
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />} Save Project
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />} {t('projects.saveProject')}
           </button>
         </div>
       </form>

@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Plus, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityCategory } from '@/lib/types';
+import type { DictKey } from '@/lib/i18n';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
 import { formatDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -19,6 +20,7 @@ const PAGE_SIZE = 15;
 
 function RequestScheduleContent() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const searchParams = useSearchParams();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
@@ -60,11 +62,11 @@ function RequestScheduleContent() {
       setActivities((data as Activity[]) ?? []);
       setTotal(count ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load activities.');
+      setError(e instanceof Error ? e.message : t('activity.failedToLoadList'));
     } finally {
       setLoading(false);
     }
-  }, [page, search, status, categoryId]);
+  }, [page, search, status, categoryId, t]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, status, categoryId]);
@@ -75,25 +77,25 @@ function RequestScheduleContent() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Request Schedule</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Installation, demo, and survey activities across all projects.</p>
+          <h1 className="text-xl font-semibold text-slate-900">{t('nav.requestSchedule')}</h1>
+          <p className="text-sm text-slate-500 mt-0.5">{t('activity.subtitleList')}</p>
         </div>
         {canCreate && (
           <button onClick={() => setFormOpen(true)} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
-            <Plus className="h-4 w-4" /> New Activity
+            <Plus className="h-4 w-4" /> {t('activity.newActivity')}
           </button>
         )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder="Search title, request #, customer…" /></div>
+        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder={t('activity.searchPlaceholderList')} /></div>
         <select value={categoryId} onChange={e => setCategoryId(e.target.value)} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
-          <option value="">All categories</option>
+          <option value="">{t('activity.allCategories')}</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
-          <option value="">All statuses</option>
-          {ACTIVITY_STATUSES.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+          <option value="">{t('common.allStatuses')}</option>
+          {ACTIVITY_STATUSES.map(s => <option key={s} value={s}>{t(`status.${s}` as DictKey)}</option>)}
         </select>
         <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
@@ -106,7 +108,7 @@ function RequestScheduleContent() {
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
         ) : activities.length === 0 ? (
-          <EmptyState title="No activities found" description="Try adjusting your filters, or create a new activity." />
+          <EmptyState title={t('activity.noneFound')} description={t('activity.tryAdjusting')} />
         ) : (
           <>
             <div className="divide-y divide-slate-100">
@@ -121,7 +123,7 @@ function RequestScheduleContent() {
                     <p className="text-xs text-slate-500 truncate">{a.projects?.name}{a.customer_name ? ` · ${a.customer_name}` : ''}</p>
                   </div>
                   <div className="hidden sm:block text-sm text-slate-500 w-28 shrink-0">{formatDate(a.scheduled_date)}</div>
-                  <div className="hidden sm:block text-sm text-slate-500 w-24 shrink-0">{a.personnel_count} people</div>
+                  <div className="hidden sm:block text-sm text-slate-500 w-24 shrink-0">{a.personnel_count} {t('activity.people')}</div>
                   <StatusBadge status={a.status} />
                 </Link>
               ))}

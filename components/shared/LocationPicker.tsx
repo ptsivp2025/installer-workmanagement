@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Map as LeafletMap, Marker as LeafletMarker } from 'leaflet';
 import { Search, Loader2, MapPin } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import { useLanguage } from '@/app/providers';
 
 interface NominatimResult {
   display_name: string;
@@ -21,6 +22,7 @@ export function LocationPicker({
   longitude: string;
   onChange: (address: string, latitude: string, longitude: string) => void;
 }) {
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markerRef = useRef<LeafletMarker | null>(null);
@@ -141,7 +143,7 @@ export function LocationPicker({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{t('location.label')}</label>
       {/* relative + high z-index: the results dropdown must render above the
           Leaflet map below it, which otherwise sits on top (map panes/
           controls default to z-index up to ~1000 — the dropdown needs more). */}
@@ -154,7 +156,7 @@ export function LocationPicker({
             onFocus={() => setShowResults(true)}
             onBlur={() => setTimeout(() => setShowResults(false), 150)}
             className="w-full rounded-control border border-slate-300 pl-9 pr-9 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-            placeholder="Search address or place…"
+            placeholder={t('location.searchPlaceholder')}
           />
           {searching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />}
         </div>
@@ -178,7 +180,7 @@ export function LocationPicker({
       </div>
       <div ref={containerRef} className="mt-2 h-64 w-full rounded-control border border-slate-200 relative z-0" />
       {latitude && longitude && (
-        <p className="text-xs text-slate-400 mt-1">{latitude}, {longitude} — drag the pin or click the map to fine-tune.</p>
+        <p className="text-xs text-slate-400 mt-1">{latitude}, {longitude} — {t('location.dragHint')}</p>
       )}
     </div>
   );

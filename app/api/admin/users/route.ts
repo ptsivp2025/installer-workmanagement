@@ -14,18 +14,21 @@ export async function POST(request: NextRequest) {
   const requester = await getSessionUser(request);
   if (!requester || requester.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-  const { username, full_name, role, phone, password } = await request.json();
+  const { username, full_name, role, phone, password, sales_division_id } = await request.json();
   if (!username?.trim() || !full_name?.trim() || !password || password.length < 8) {
     return NextResponse.json({ error: 'Username, full name, and a password of at least 8 characters are required.' }, { status: 400 });
   }
   if (!ROLES.includes(role)) {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
   }
+  if (role === 'sales' && !sales_division_id) {
+    return NextResponse.json({ error: 'A Sales Division user needs a division assigned.' }, { status: 400 });
+  }
 
   const supabase = getAdminClient();
   const { data: user, error: userErr } = await supabase
     .from('users')
-    .insert({ username: username.trim(), full_name: full_name.trim(), role, phone: phone?.trim() || null })
+    .insert({ username: username.trim(), full_name: full_name.trim(), role, phone: phone?.trim() || null, sales_division_id: role === 'sales' ? sales_division_id : null })
     .select()
     .single();
   if (userErr) return NextResponse.json({ error: userErr.message }, { status: 400 });

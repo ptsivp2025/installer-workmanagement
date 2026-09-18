@@ -10,7 +10,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const requester = await getSessionUser(request);
   if (!requester || requester.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-  const { full_name, role, phone, active, new_password } = await request.json();
+  const { full_name, role, phone, active, new_password, sales_division_id } = await request.json();
   const supabase = getAdminClient();
 
   const updates: Record<string, unknown> = {};
@@ -22,7 +22,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (params.id === requester.id && role !== 'admin') {
       return NextResponse.json({ error: 'You cannot remove your own admin role.' }, { status: 400 });
     }
+    if (role === 'sales' && !sales_division_id) {
+      return NextResponse.json({ error: 'A Sales Division user needs a division assigned.' }, { status: 400 });
+    }
     updates.role = role;
+    updates.sales_division_id = role === 'sales' ? sales_division_id : null;
   }
   if (active === false && params.id === requester.id) {
     return NextResponse.json({ error: 'You cannot deactivate your own account.' }, { status: 400 });

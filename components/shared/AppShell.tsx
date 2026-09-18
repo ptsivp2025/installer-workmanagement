@@ -4,27 +4,40 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X,
+  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star,
 } from 'lucide-react';
-import { useAuth } from '@/app/providers';
+import { useAuth, useLanguage } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
-import { roleLabel } from '@/lib/constants';
 import { supabase } from '@/lib/supabase';
+import { LanguageToggle } from './LanguageToggle';
+import type { DictKey } from '@/lib/i18n';
 
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', icon: FolderKanban },
-  { href: '/request-schedule', label: 'Request Schedule', icon: CalendarClock },
-  { href: '/form-review', label: 'Form Review', icon: ClipboardCheck },
-  { href: '/project-progress', label: 'Project Progress', icon: FolderKanban },
+const NAV: { href: string; labelKey: DictKey; icon: React.ElementType }[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
+  { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock },
+  { href: '/form-review', labelKey: 'nav.formReview', icon: ClipboardCheck },
+  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: FolderKanban },
+  { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
 ];
 
-const ADMIN_NAV = { href: '/admin/categories', label: 'Admin Panel', icon: Settings };
+// A Sales Division account only checks progress and rates finished work on
+// its own division's projects (RLS-scoped) — scheduling and internal QC
+// (Form Review) aren't theirs to touch.
+const SALES_NAV: { href: string; labelKey: DictKey; icon: React.ElementType }[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
+  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: FolderKanban },
+  { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
+];
+
+const ADMIN_NAV: { href: string; labelKey: DictKey; icon: React.ElementType } = { href: '/admin/categories', labelKey: 'nav.adminPanel', icon: Settings };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, setUserProfile } = useAuth();
+  const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [brand, setBrand] = useState<{ company_name: string; logo_url: string | null } | null>(null);
 
@@ -39,7 +52,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   }
 
-  const items = user?.role === 'admin' ? [...NAV, ADMIN_NAV] : NAV;
+  const items = user?.role === 'sales' ? SALES_NAV : user?.role === 'admin' ? [...NAV, ADMIN_NAV] : NAV;
 
   return (
     <div className="min-h-screen flex">
@@ -81,13 +94,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-slate-100 p-3">
+        <div className="border-t border-slate-100 p-3 space-y-2">
+          <div className="px-2"><LanguageToggle /></div>
           {!loading && user && (
             <div className="flex items-center gap-2 px-2 py-2">
               <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
@@ -95,9 +109,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800 truncate">{user.full_name || user.username}</p>
-                <p className="text-xs text-slate-400">{roleLabel(user.role)}</p>
+                <p className="text-xs text-slate-400">{t(`role.${user.role}` as DictKey)}</p>
               </div>
-              <button onClick={handleLogout} title="Sign out" className="text-slate-400 hover:text-red-500">
+              <button onClick={handleLogout} title={t('common.signOut')} className="text-slate-400 hover:text-red-500">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
