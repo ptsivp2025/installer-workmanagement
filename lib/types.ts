@@ -9,9 +9,17 @@ export interface Project {
   status: string;
   notes: string | null;
   expected_completion: string | null;
+  sales_division: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SalesDivision {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
 }
 
 export interface ActivityCategory {
@@ -45,6 +53,8 @@ export interface Activity {
   status: string;
   personnel_count: number;
   notes: string | null;
+  pic_name: string | null;
+  pic_phone: string | null;
   target_latitude: number | null;
   target_longitude: number | null;
   execution_latitude: number | null;
@@ -96,7 +106,12 @@ export interface FormReview {
 
 export interface AppUser {
   id: string;
+  username: string;
   full_name: string;
   role: string;
+  phone: string | null;
+  telegram_chat_id: string | null;
+  sales_division: string | null;
   active: boolean;
+  created_at: string;
 }

@@ -4,19 +4,27 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
-import type { Project } from '@/lib/types';
+import { MapPicker } from '@/components/shared/MapPicker';
+import type { Project, SalesDivision } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 
 export function ProjectFormModal({
   open, onClose, onSaved, project,
 }: { open: boolean; onClose: () => void; onSaved: () => void; project?: Project | null }) {
   const { user } = useAuth();
+  const [divisions, setDivisions] = useState<SalesDivision[]>([]);
   const [form, setForm] = useState({
     code: '', name: '', customer_name: '', address: '', latitude: '', longitude: '',
-    expected_completion: '', notes: '', status: 'active',
+    expected_completion: '', notes: '', status: 'active', sales_division: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase.from('sales_divisions').select('*').order('sort_order').order('name')
+      .then((res: { data: SalesDivision[] | null }) => setDivisions(res.data ?? []));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -25,10 +33,10 @@ export function ProjectFormModal({
         code: project.code, name: project.name, customer_name: project.customer_name ?? '',
         address: project.address ?? '', latitude: project.latitude?.toString() ?? '',
         longitude: project.longitude?.toString() ?? '', expected_completion: project.expected_completion ?? '',
-        notes: project.notes ?? '', status: project.status,
+        notes: project.notes ?? '', status: project.status, sales_division: project.sales_division ?? '',
       });
     } else {
-      setForm({ code: `PRJ-${Date.now().toString(36).toUpperCase()}`, name: '', customer_name: '', address: '', latitude: '', longitude: '', expected_completion: '', notes: '', status: 'active' });
+      setForm({ code: `PRJ-${Date.now().toString(36).toUpperCase()}`, name: '', customer_name: '', address: '', latitude: '', longitude: '', expected_completion: '', notes: '', status: 'active', sales_division: '' });
     }
     setError(null);
   }, [open, project]);
@@ -49,6 +57,7 @@ export function ProjectFormModal({
       expected_completion: form.expected_completion || null,
       notes: form.notes.trim() || null,
       status: form.status,
+      sales_division: form.sales_division || null,
     };
 
     const result = project
@@ -77,11 +86,26 @@ export function ProjectFormModal({
         <Field label="Project Name" required>
           <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className={inputCls} placeholder="e.g. ABC Hotel" />
         </Field>
-        <Field label="Customer / Company">
-          <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} className={inputCls} />
-        </Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Field label="Customer / Company">
+            <input value={form.customer_name} onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))} className={inputCls} />
+          </Field>
+          <Field label="Sales Division">
+            <select value={form.sales_division} onChange={e => setForm(f => ({ ...f, sales_division: e.target.value }))} className={inputCls}>
+              <option value="">—</option>
+              {divisions.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            </select>
+          </Field>
+        </div>
         <Field label="Address">
           <input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className={inputCls} />
+        </Field>
+        <Field label="Location">
+          <MapPicker
+            lat={form.latitude ? Number(form.latitude) : null}
+            lng={form.longitude ? Number(form.longitude) : null}
+            onPick={(lat, lng) => setForm(f => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))}
+          />
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Target Latitude">

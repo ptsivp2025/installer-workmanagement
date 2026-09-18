@@ -80,9 +80,17 @@ $$;
 -- or account deactivation must take effect on the NEXT request, not the next
 -- login — so every authorization check below reads live state here rather
 -- than the stale claim. STABLE (not IMMUTABLE) so it re-evaluates per query.
+--
+-- SECURITY DEFINER is load-bearing, not optional: users_select's own RLS
+-- policy (004_rls.sql) calls is_authenticated(), which calls this function.
+-- Without SECURITY DEFINER, the SELECT below would itself be subject to
+-- that same RLS policy, which calls is_authenticated() again, which calls
+-- this function again — infinite recursion, surfaced as Postgres error
+-- "stack depth limit exceeded". SECURITY DEFINER makes this SELECT run as
+-- the function owner, bypassing RLS on users and breaking the cycle.
 CREATE OR REPLACE FUNCTION public.current_role_from_db()
 RETURNS text
-LANGUAGE sql STABLE
+LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path TO 'public', 'pg_temp'
 AS $$
   SELECT role FROM public.users WHERE id = public.jwt_user_id() AND active;

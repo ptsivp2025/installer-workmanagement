@@ -106,6 +106,9 @@ export default function ActivityDetailPage() {
           <InfoRow label="Location"><span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{activity.location_address || '—'}</span></InfoRow>
           <InfoRow label="Priority"><span className="capitalize">{activity.priority}</span></InfoRow>
           <InfoRow label="Completed">{formatDateTime(activity.completed_at)}</InfoRow>
+          {(activity.pic_name || activity.pic_phone) && (
+            <InfoRow label="Site PIC">{activity.pic_name || '—'}{activity.pic_phone ? ` · ${activity.pic_phone}` : ''}</InfoRow>
+          )}
         </div>
 
         {activity.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{activity.notes}</p>}

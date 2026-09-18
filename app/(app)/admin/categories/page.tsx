@@ -51,10 +51,7 @@ export default function AdminCategoriesPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">Admin Panel — Activity Categories</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Categories are database-driven — no code change needed to add or retire one.</p>
-        </div>
+        <p className="text-sm text-slate-500">Categories are database-driven — no code change needed to add or retire one.</p>
         <button onClick={() => { setEditing(null); setFormOpen(true); }} className="inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-medium px-3.5 py-2 hover:bg-brand-700">
           <Plus className="h-4 w-4" /> New Category
         </button>

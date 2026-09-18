@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { captureGeolocation, geoErrorMessage, type GeoReading } from '@/lib/geolocation';
 import { haversineMeters, formatDistance } from '@/lib/utils';
 import type { Activity } from '@/lib/types';
+import { LocationMap, type MapMarker } from '@/components/shared/LocationMap';
 
 export function ExecutionPanel({
   activity, targetLat, targetLng, canAct, onChanged,
@@ -61,16 +62,29 @@ export function ExecutionPanel({
   }
 
   if (activity.status === 'completed') {
+    const completedMarkers: MapMarker[] = [];
+    if (hasTarget) completedMarkers.push({ lat: targetLat!, lng: targetLng!, color: '#2563eb', label: 'Target' });
+    if (activity.execution_latitude != null && activity.execution_longitude != null) {
+      completedMarkers.push({
+        lat: activity.execution_latitude, lng: activity.execution_longitude,
+        color: activity.gps_validation_status === 'valid' ? '#059669' : '#dc2626', label: 'Execution',
+      });
+    }
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-card p-5 flex items-center gap-3">
-        <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
-        <div>
-          <p className="font-medium text-emerald-800">Activity Completed</p>
-          <p className="text-sm text-emerald-700">
-            {activity.gps_validation_status === 'valid' && activity.distance_from_target_m != null &&
-              `GPS valid · ${formatDistance(activity.distance_from_target_m)} from target`}
-          </p>
+      <div className="bg-emerald-50 border border-emerald-200 rounded-card p-5">
+        <div className="flex items-center gap-3">
+          <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+          <div>
+            <p className="font-medium text-emerald-800">Activity Completed</p>
+            <p className="text-sm text-emerald-700">
+              {activity.gps_validation_status === 'valid' && activity.distance_from_target_m != null &&
+                `GPS valid · ${formatDistance(activity.distance_from_target_m)} from target`}
+            </p>
+          </div>
         </div>
+        {completedMarkers.length > 0 && (
+          <div className="mt-4"><LocationMap markers={completedMarkers} /></div>
+        )}
       </div>
     );
   }
@@ -97,6 +111,14 @@ export function ExecutionPanel({
 
       {activity.status === 'in_progress' && canAct && (
         <div className="space-y-4">
+          {(hasTarget || reading) && (
+            <LocationMap
+              markers={[
+                ...(hasTarget ? [{ lat: targetLat!, lng: targetLng!, color: '#2563eb', label: 'Target' } as MapMarker] : []),
+                ...(reading ? [{ lat: reading.lat, lng: reading.lng, color: liveDistance != null && liveDistance > radius ? '#dc2626' : '#059669', label: 'Your position' } as MapMarker] : []),
+              ]}
+            />
+          )}
           <div className="rounded-control bg-slate-50 border border-slate-200 p-4 text-center">
             {reading ? (
               <>

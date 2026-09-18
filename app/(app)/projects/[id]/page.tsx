@@ -10,6 +10,7 @@ import type { Project, Activity } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
+import { LocationMap } from '@/components/shared/LocationMap';
 import { ProjectFormModal } from '../_components/ProjectFormModal';
 
 export default function ProjectDetailPage() {
@@ -94,6 +95,12 @@ export default function ProjectDetailPage() {
         </div>
 
         {project.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{project.notes}</p>}
+
+        {project.latitude != null && project.longitude != null && (
+          <div className="mt-4">
+            <LocationMap markers={[{ lat: project.latitude, lng: project.longitude, color: '#2563eb', label: project.name }]} />
+          </div>
+        )}
 
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm mb-1.5">

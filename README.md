@@ -34,9 +34,10 @@ npm run dev
 Open http://localhost:3000. You'll land on `/login`. The database migrations
 (§4) seed a bootstrap account: username `admin`, password `ChangeMe123!` —
 **change it immediately** after your first login (there is no in-app "forgot
-password" flow yet; changing it requires `/api/auth/change-password`, which
-any logged-in page can call, or resetting `user_credentials` directly in the
-SQL editor).
+password" flow yet for a user's *own* password; changing it requires
+`/api/auth/change-password`, which any logged-in page can call. Admins can
+reset anyone else's password from Admin Panel → User Management, or by
+resetting `user_credentials` directly in the SQL editor).
 
 Other useful commands:
 
@@ -57,6 +58,7 @@ Copy `.env.example` to `.env.local` and fill in:
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → `service_role` key | **No — server only** |
 | `SUPABASE_JWT_SECRET` | Project Settings → API → JWT Settings → JWT Secret | **No — server only** |
 | `NEXT_PUBLIC_EVIDENCE_BUCKET` | Fixed value: `activity-evidence` (created by the migrations) | Yes |
+| `TELEGRAM_BOT_TOKEN` | Optional. From [@BotFather](https://t.me/BotFather) on Telegram (`/newbot`) | **No — server only** |
 
 Never commit `.env.local`. Never put `SUPABASE_SERVICE_ROLE_KEY` or
 `SUPABASE_JWT_SECRET` behind a `NEXT_PUBLIC_` prefix.
@@ -149,6 +151,11 @@ migrations against each one.
       missing; succeeds once all are satisfied)
 - [ ] Form Review tested (approve and reject both work, activity's review
       status updates)
+- [ ] Admin Panel → User Management tested (create a user, log in as them,
+      reset their password)
+- [ ] (Optional) `TELEGRAM_BOT_TOKEN` set and a user's `telegram_chat_id`
+      linked — schedule an activity or decide a review and confirm the
+      message arrives
 - [ ] Admin Panel → Activity Categories tested (add a category, confirm it
       appears in Request Schedule's "New Activity" dropdown without any code
       change; deactivate one, confirm it disappears from that dropdown but
@@ -250,9 +257,62 @@ thumbnail variant via short-lived signed URLs fetched in one batched request
 per page (`/api/evidence/signed-urls`) — never a public bucket, never the
 full-size original just to render a grid.
 
+### User Management
+Admin Panel → User Management (`app/(app)/admin/users`) creates accounts,
+changes role/active state, resets passwords, and links a Telegram chat id —
+all server-side (`app/api/admin/users/**`, service-role + bcrypt), since
+`user_credentials` intentionally has no client INSERT/UPDATE policy. Role,
+`active`, and `username` are further locked down by a guard trigger
+(`guard_users_privileged_columns`, migration 007) so only an admin can
+change them even via a direct RLS-permitted update — a user can self-edit
+their own `telegram_chat_id` (from wherever they'd naturally set it up) but
+nothing else about their own account.
+
+### Telegram notifications
+Optional (`TELEGRAM_BOT_TOKEN`) and best-effort — a failed send never blocks
+or fails the action that triggered it (`lib/telegram.ts`). Two triggers:
+staff scheduling a new activity notifies every active installer with a
+linked chat id (`/api/notifications/activity-scheduled`); a review being
+approved/rejected notifies that activity's personnel who are linked to a
+real account (`/api/notifications/review-decided`, via
+`activity_personnel.user_id`). Personnel added as free text (no linked
+account — the default) simply receive nothing, since there's no chat id to
+send to; linking is optional in `PersonnelPanel`'s "pick an existing user"
+selector.
+
+### Sales Division
+`sales_divisions` is an admin-managed list (Admin Panel → Sales Divisions),
+mirroring the WorkManagementPTSIVP baseline's "Divisi Sales" — there it's a
+JSON blob in a key/value settings table; here it's a real table with a
+foreign key from `users.sales_division` and `projects.sales_division`, so a
+division still assigned to someone can't be deleted (the database rejects
+it, no hand-rolled usage-count check needed).
+
+### Request Schedule form
+Three sections — Schedule Info, Time & Schedule, Project Info — matching the
+baseline's layout, with category picked as a chip grid instead of a
+dropdown (it's the highest-signal field on the form) and a site PIC
+name/phone distinct from the customer contact. Two behaviors *new activity*
+creation has that the baseline's didn't map 1:1, added deliberately: "Add
+other dates" creates one activity per date from a single submission instead
+of a recurring-schedule engine (out of scope for this platform's size), and
+personnel can be assigned right at creation (checkboxes over active users)
+instead of only after the fact on the activity's own page — both write
+through the same tables Request Schedule already used, nothing new to
+validate. Deliberately not carried over: product/brand pickers and the
+guest/sales satisfaction review panel — those are specific to the
+baseline's AV equipment and multi-brand business, not this platform's.
+
+### Interactive maps
+`components/shared/MapPicker.tsx` (address search via Nominatim/
+OpenStreetMap — free, no API key — plus a draggable pin) replaces typing
+raw coordinates in the Project form; `components/shared/LocationMap.tsx`
+is the read-only counterpart, plotting a project's location and, on the
+Execution panel, the target vs. captured GPS position side by side so the
+field team can see placement, not just read a distance in meters. Leaflet
+is dynamically imported inside `useEffect` in both — it touches `window` at
+import time and breaks server-side rendering if imported statically.
+
 ### What's intentionally not here
 Per the build brief: no Incentive, Request Design, Picket, Movement Logs,
-PTS Database, Tech Note, Learning Center, or User Management / PIC Brand
-admin screens. User accounts are provisioned directly in Supabase (SQL
-Editor) rather than through an in-app screen — there simply aren't enough
-of them, on a platform this size, to justify one.
+PTS Database, Tech Note, Learning Center, or PIC Brand admin screens.

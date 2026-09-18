@@ -63,6 +63,10 @@ export default function FormReviewDetailPage() {
     setDeciding(null);
     if (err) { setDecisionError(err.message); return; }
     if (data?.status !== decision) { setDecisionError('Decision did not apply as expected. Please refresh and try again.'); return; }
+    fetch('/api/notifications/review-decided', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewId: id }),
+    }).catch(() => {});
     await load();
   }
 
