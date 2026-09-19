@@ -91,6 +91,7 @@ CREATE OR REPLACE TRIGGER trg_guard_users_privileged_columns
 CREATE OR REPLACE FUNCTION public.current_role_from_db()
 RETURNS text
 LANGUAGE sql STABLE
+SECURITY DEFINER  -- see 019: without this the users policy recurses
 SET search_path TO 'public', 'pg_temp'
 AS $$
   SELECT role FROM public.users

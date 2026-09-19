@@ -83,6 +83,11 @@ $$;
 CREATE OR REPLACE FUNCTION public.current_role_from_db()
 RETURNS text
 LANGUAGE sql STABLE
+-- SECURITY DEFINER is load-bearing, not hardening: users_select (004_rls.sql)
+-- guards public.users with is_authenticated(), which lands here, which reads
+-- public.users — so without the owner's RLS bypass this recurses until the
+-- backend dies with "stack depth limit exceeded". See 019.
+SECURITY DEFINER
 SET search_path TO 'public', 'pg_temp'
 AS $$
   SELECT role FROM public.users WHERE id = public.jwt_user_id() AND active;

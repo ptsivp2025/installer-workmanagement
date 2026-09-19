@@ -26,6 +26,9 @@ $$;
 CREATE OR REPLACE FUNCTION public.current_sales_division_id()
 RETURNS uuid
 LANGUAGE sql STABLE
+-- Reads public.users from inside the policies that guard public.users — see
+-- the note in 001 and migration 019.
+SECURITY DEFINER
 SET search_path TO 'public', 'pg_temp'
 AS $$
   SELECT sales_division_id FROM public.users WHERE id = public.jwt_user_id() AND active;
