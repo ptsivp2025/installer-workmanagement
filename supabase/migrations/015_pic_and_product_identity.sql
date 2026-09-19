@@ -20,6 +20,20 @@
 --    the platform only surfaces the fact, never a financial decision (§5).
 -- ============================================================================
 
+-- ── self-healing dependency on migration 009 ──────────────────────────────
+-- This migration's guard trigger and iwm_create_activity() both need
+-- counts_as_demo/counts_as_installation/pic_name/pic_phone (009). Given this
+-- project's history of migrations run out of order across parallel sessions,
+-- 009 may not actually have landed on every database that runs this file —
+-- so provision its columns here too, defensively and idempotently, rather
+-- than assuming it already happened.
+ALTER TABLE public.activity_categories ADD COLUMN IF NOT EXISTS counts_as_demo boolean NOT NULL DEFAULT false;
+ALTER TABLE public.activity_categories ADD COLUMN IF NOT EXISTS counts_as_installation boolean NOT NULL DEFAULT false;
+UPDATE public.activity_categories SET counts_as_demo = true WHERE code = 'instalasi_demo' AND NOT counts_as_demo;
+UPDATE public.activity_categories SET counts_as_installation = true WHERE code = 'instalasi_beli' AND NOT counts_as_installation;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS pic_name text;
+ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS pic_phone text;
+
 -- ── product identity — Brand + Install Type required, Model optional ─────
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS product_brand text;
 ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS product_type text;
@@ -27,6 +41,14 @@ ALTER TABLE public.activities ADD COLUMN IF NOT EXISTS product_model text;
 
 -- Enforced on write only — existing historical rows are never retroactively
 -- invalidated by this (spec §22), only a future INSERT/UPDATE is checked.
+-- Critically, "UPDATE" here means an update that actually TOUCHES category
+-- or product fields — an incidental UPDATE this table receives constantly
+-- for unrelated reasons (personnel_count sync trigger, iwm_complete_activity
+-- setting completed_at/GPS fields, editing notes, a status change) must
+-- never re-validate a historical row's product fields against today's
+-- rules. Without this guard, completing or even just re-syncing personnel
+-- on ANY pre-existing Demo/Beli activity that predates this migration would
+-- fail forever, since its product_brand/product_type are legitimately NULL.
 CREATE OR REPLACE FUNCTION public.guard_activity_product_required()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -35,6 +57,14 @@ AS $$
 DECLARE
   v_needs_product boolean;
 BEGIN
+  IF TG_OP = 'UPDATE'
+     AND NEW.category_id IS NOT DISTINCT FROM OLD.category_id
+     AND NEW.product_brand IS NOT DISTINCT FROM OLD.product_brand
+     AND NEW.product_type IS NOT DISTINCT FROM OLD.product_type
+  THEN
+    RETURN NEW;
+  END IF;
+
   SELECT (counts_as_demo OR counts_as_installation) INTO v_needs_product
   FROM public.activity_categories WHERE id = NEW.category_id;
 

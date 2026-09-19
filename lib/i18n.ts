@@ -369,12 +369,16 @@ export const dict = {
   // ── admin: shared ────────────────────────────────────────────────────
   'admin.panel': { en: 'Admin Panel', id: 'Panel Admin' },
   'admin.onlyAdmins': { en: 'Only admins can access this page.', id: 'Hanya admin yang dapat mengakses halaman ini.' },
+  'admin.modalSubtitle': { en: 'Superadmin Settings', id: 'Pengaturan Superadmin' },
   'admin.tab.categories': { en: 'Activity Categories', id: 'Kategori Kegiatan' },
   'admin.tab.users': { en: 'Users', id: 'Pengguna' },
   'admin.tab.salesDivisions': { en: 'Sales Divisions', id: 'Divisi Sales' },
   'admin.tab.settings': { en: 'Account Settings', id: 'Pengaturan Akun' },
   'admin.tab.notifications': { en: 'Notifications', id: 'Notifikasi' },
   'admin.tab.integrations': { en: 'Integrations', id: 'Integrasi' },
+  'admin.group.general': { en: 'General', id: 'Umum' },
+  'admin.group.appearance': { en: 'Appearance', id: 'Tampilan' },
+  'admin.group.notifications': { en: 'Notifications', id: 'Notifikasi' },
 
   // ── admin: categories ────────────────────────────────────────────────
   'adminCategories.subtitle': { en: 'Categories are database-driven — no code change needed to add or retire one.', id: 'Kategori dikelola dari database — tidak perlu ubah kode untuk menambah atau menonaktifkan.' },

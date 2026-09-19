@@ -10,9 +10,14 @@ import { useAuth, useLanguage } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { LanguageToggle } from './LanguageToggle';
+import { AdminPanelModal } from '@/app/(app)/admin/_components/AdminPanelModal';
 import type { DictKey } from '@/lib/i18n';
 
-type NavItem = { href: string; labelKey: DictKey; icon: React.ElementType };
+// A regular item navigates via href; a modal item (Admin Panel) opens a
+// popup over whatever page is currently showing instead — it never has its
+// own route, so there's only ever one sidebar on screen (spec: the admin
+// section must not render as a second full-page sidebar next to this one).
+type NavItem = { href: string; labelKey: DictKey; icon: React.ElementType; modal?: true };
 
 const STAFF_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
@@ -44,7 +49,7 @@ const SALES_NAV: NavItem[] = [
   { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
 ];
 
-const ADMIN_NAV: NavItem = { href: '/admin/categories', labelKey: 'nav.adminPanel', icon: Settings };
+const ADMIN_NAV: NavItem = { href: '#admin', labelKey: 'nav.adminPanel', icon: Settings, modal: true };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -52,6 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, setUserProfile } = useAuth();
   const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [brand, setBrand] = useState<{ platform_name: string; company_name: string; logo_url: string | null } | null>(null);
 
   useEffect(() => {
@@ -109,6 +115,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
           {items.map(item => {
             const Icon = item.icon;
+            if (item.modal) {
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => { setAdminOpen(true); setMobileOpen(false); }}
+                  className="w-full flex items-center gap-3 rounded-control px-3 py-2 text-sm font-medium transition text-slate-600 hover:bg-slate-50"
+                >
+                  <Icon className="h-4 w-4" />
+                  {t(item.labelKey)}
+                </button>
+              );
+            }
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
@@ -155,6 +173,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-white border-t border-slate-200 z-40 flex items-stretch">
           {items.map(item => {
             const Icon = item.icon;
+            if (item.modal) {
+              return (
+                <button
+                  key={item.href}
+                  onClick={() => setAdminOpen(true)}
+                  className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-slate-500"
+                >
+                  <Icon className="h-5 w-5" />
+                  {t(item.labelKey)}
+                </button>
+              );
+            }
             const active = pathname === item.href || pathname.startsWith(item.href + '/');
             return (
               <Link
@@ -176,6 +206,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </nav>
       )}
+
+      <AdminPanelModal open={adminOpen} onClose={() => setAdminOpen(false)} />
     </div>
   );
 }
