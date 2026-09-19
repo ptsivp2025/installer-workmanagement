@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, R
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { FormReview, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
-import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { useSignedUrls } from '@/lib/useSignedUrls';
@@ -64,7 +64,7 @@ export default function FormReviewDetailPage() {
         setDiscount(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('formReview.failedToLoad'));
+      setError(errorMessage(e, t('formReview.failedToLoad')));
     } finally {
       setLoading(false);
     }

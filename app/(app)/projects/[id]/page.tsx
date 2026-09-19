@@ -7,7 +7,7 @@ import { ArrowLeft, MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, H
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project, Activity, ActivityPersonnel, ActivityDiscountEligibility } from '@/lib/types';
-import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ProjectFormModal } from '../_components/ProjectFormModal';
@@ -68,7 +68,7 @@ export default function ProjectDetailPage() {
         setDiscountByActivity({});
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('projects.failedToLoad'));
+      setError(errorMessage(e, t('projects.failedToLoad')));
     } finally {
       setLoading(false);
     }

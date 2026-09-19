@@ -7,7 +7,7 @@ import { ArrowLeft, Users, Camera, Navigation, CheckCircle2, Clock, CalendarCloc
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { Project, Activity, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
-import { formatDate, formatDateTime, formatDistance } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { useSignedUrls } from '@/lib/useSignedUrls';
@@ -56,7 +56,7 @@ export default function ProjectProgressDetailPage() {
       for (const e of (elig as ActivityDiscountEligibility[]) ?? []) map[e.activity_id] = e;
       setDiscountByActivity(map);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('projectProgress.failedToLoad'));
+      setError(errorMessage(e, t('projectProgress.failedToLoad')));
     } finally {
       setLoading(false);
     }

@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { ActivityCategory, PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
+import { withTimeout, failIfAnyErrored, errorMessage } from '@/lib/utils';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
 import type { DictKey } from '@/lib/i18n';
 import { InstallerDashboard } from './_components/InstallerDashboard';
@@ -77,21 +78,33 @@ function StaffDashboard() {
       const today = todayStart.toISOString().slice(0, 10);
       const fourteenDaysAgo = new Date(todayStart); fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
 
-      const [
-        { count: todayC }, { count: inProgC }, { count: completedTodayC }, { count: pendingC }, { count: projC },
-        { data: cats }, { data: settings }, { data: allStatuses }, { data: recentCompletions }, { data: salesReviews },
-      ] = await Promise.all([
+      const results = await withTimeout(Promise.all([
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('scheduled_date', today),
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
         supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'completed').gte('completed_at', todayStart.toISOString()).lte('completed_at', todayEnd.toISOString()),
         supabase.from('form_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('activity_categories').select('*').eq('active', true).order('sort_order'),
-        supabase.from('platform_settings').select('show_dashboard_category_breakdown').eq('id', true).single(),
         supabase.from('activities').select('status'),
         supabase.from('activities').select('completed_at').eq('status', 'completed').gte('completed_at', fourteenDaysAgo.toISOString()),
         supabase.from('sales_reviews').select('status, rating'),
-      ]);
+      ]));
+
+      // A PostgREST error resolves the promise rather than rejecting it, so
+      // without this the page would silently render zeros (or, when a
+      // request stalls, spin forever) instead of telling anyone what broke.
+      failIfAnyErrored(results);
+
+      const [
+        { count: todayC }, { count: inProgC }, { count: completedTodayC }, { count: pendingC }, { count: projC },
+        { data: cats }, { data: allStatuses }, { data: recentCompletions }, { data: salesReviews },
+      ] = results;
+
+      // Optional on purpose: a missing settings row (or a column from a
+      // migration that hasn't been run yet) is a preference, not a reason to
+      // take the whole dashboard down.
+      const { data: settings } = await supabase
+        .from('platform_settings').select('show_dashboard_category_breakdown').eq('id', true).maybeSingle();
 
       setTodayCount(todayC ?? 0);
       setInProgressCount(inProgC ?? 0);
@@ -158,11 +171,12 @@ function StaffDashboard() {
         setDemoPurchase({ demoCount: 0, purchaseCount: 0, purchaseAfterDemo: 0, demoOnlyProjects: 0 });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard.');
+      const msg = errorMessage(e, 'Failed to load dashboard.');
+      setError(msg === 'REQUEST_TIMEOUT' ? t('common.requestTimeout') : msg);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 

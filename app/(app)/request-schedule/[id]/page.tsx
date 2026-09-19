@@ -7,7 +7,7 @@ import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, User
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview, ActivityDiscountEligibility } from '@/lib/types';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ActivityFormModal } from '../_components/ActivityFormModal';
@@ -79,7 +79,7 @@ export default function ActivityDetailPage() {
         setDiscount(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('activity.failedToLoad'));
+      setError(errorMessage(e, t('activity.failedToLoad')));
     } finally {
       setLoading(false);
     }

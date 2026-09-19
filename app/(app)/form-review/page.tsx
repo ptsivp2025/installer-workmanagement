@@ -8,7 +8,7 @@ import { useLanguage } from '@/app/providers';
 import type { FormReview } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { REVIEW_STATUSES } from '@/lib/constants';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
@@ -46,7 +46,7 @@ export default function FormReviewPage() {
       setReviews((data as unknown as FormReview[]) ?? []);
       setTotal(count ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load reviews.');
+      setError(errorMessage(e, 'Failed to load reviews.'));
     } finally {
       setLoading(false);
     }

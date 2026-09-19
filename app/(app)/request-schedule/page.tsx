@@ -9,7 +9,7 @@ import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityCategory } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
-import { formatDate } from '@/lib/utils';
+import { formatDate, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
@@ -62,7 +62,7 @@ function RequestScheduleContent() {
       setActivities((data as Activity[]) ?? []);
       setTotal(count ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('activity.failedToLoadList'));
+      setError(errorMessage(e, t('activity.failedToLoadList')));
     } finally {
       setLoading(false);
     }

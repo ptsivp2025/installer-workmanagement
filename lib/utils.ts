@@ -33,3 +33,54 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+/**
+ * Rejects if a request hasn't come back in time. Supabase/PostgREST calls
+ * have no timeout of their own, so a stalled one leaves a page showing its
+ * spinner with no error and no way out — a dead screen, which for a field
+ * user is indistinguishable from the app being broken.
+ */
+export function withTimeout<T>(promise: PromiseLike<T>, ms = 20000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), ms);
+    Promise.resolve(promise).then(
+      value => { clearTimeout(timer); resolve(value); },
+      err => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
+/**
+ * Throws the first PostgREST error in a batch of results. supabase-js
+ * *resolves* failed queries with an `error` field instead of rejecting, so a
+ * caller that only destructures `data`/`count` treats "permission denied" or
+ * "column does not exist" as an empty result and renders a page of zeros.
+ */
+export function failIfAnyErrored(results: ReadonlyArray<{ error: { message: string } | null }>): void {
+  const failed = results.find(r => r.error);
+  if (failed?.error) throw new Error(failed.error.message);
+}
+
+/**
+ * Pulls a readable message out of anything thrown.
+ *
+ * supabase-js rejects with a plain `PostgrestError` object — `{ message,
+ * details, hint, code }` — which is NOT an `Error` instance, so the usual
+ * `e instanceof Error ? e.message : 'Something failed.'` silently discards
+ * the one piece of information worth showing ("permission denied for table
+ * projects", "JWT expired", "column … does not exist") and replaces it with
+ * a generic sentence nobody can act on.
+ */
+export function errorMessage(e: unknown, fallback = 'Something went wrong.'): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string' && e.trim()) return e;
+  if (e && typeof e === 'object') {
+    const { message, hint, code } = e as { message?: unknown; hint?: unknown; code?: unknown };
+    if (typeof message === 'string' && message.trim()) {
+      const suffix = typeof hint === 'string' && hint.trim() ? ` (${hint})`
+        : typeof code === 'string' && code.trim() ? ` [${code}]` : '';
+      return message + suffix;
+    }
+  }
+  return fallback;
+}

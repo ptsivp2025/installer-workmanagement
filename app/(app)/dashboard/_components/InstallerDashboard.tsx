@@ -6,7 +6,7 @@ import { RefreshCw, ClipboardList, PlayCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SkeletonCards, SkeletonList, ErrorState } from '@/components/shared/States';
 
@@ -40,7 +40,7 @@ export function InstallerDashboard() {
       rows.sort((a, b) => (a.status === b.status ? 0 : a.status === 'in_progress' ? -1 : 1));
       setTasks(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('dashboard.installerFailedToLoad'));
+      setError(errorMessage(e, t('dashboard.installerFailedToLoad')));
     } finally {
       setLoading(false);
     }

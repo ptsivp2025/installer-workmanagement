@@ -7,7 +7,7 @@ import { ArrowLeft, Star, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { SalesReview } from '@/lib/types';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 
@@ -39,7 +39,7 @@ export default function SalesReviewDetailPage() {
       setRating(rev.rating ?? 0);
       setComment(rev.comment ?? '');
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('salesReview.notFound'));
+      setError(errorMessage(e, t('salesReview.notFound')));
     } finally {
       setLoading(false);
     }

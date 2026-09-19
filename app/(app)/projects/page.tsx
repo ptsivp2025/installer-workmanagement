@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
 import { PROJECT_STATUSES } from '@/lib/constants';
-import { formatDate } from '@/lib/utils';
+import { formatDate, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
@@ -62,7 +62,7 @@ export default function ProjectsPage() {
         setCounts({});
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load projects.');
+      setError(errorMessage(e, 'Failed to load projects.'));
     } finally {
       setLoading(false);
     }

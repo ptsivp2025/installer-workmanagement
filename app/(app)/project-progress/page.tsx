@@ -6,7 +6,7 @@ import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
-import { formatDate } from '@/lib/utils';
+import { formatDate, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
@@ -42,7 +42,7 @@ export default function ProjectProgressListPage() {
         setCounts(next);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('projectProgress.failedToLoad'));
+      setError(errorMessage(e, t('projectProgress.failedToLoad')));
     } finally {
       setLoading(false);
     }

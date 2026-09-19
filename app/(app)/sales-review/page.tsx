@@ -6,7 +6,7 @@ import { RefreshCw, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { SalesReview } from '@/lib/types';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
@@ -44,7 +44,7 @@ export default function SalesReviewPage() {
       setReviews((data as unknown as SalesReview[]) ?? []);
       setTotal(count ?? 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load reviews.');
+      setError(errorMessage(e, 'Failed to load reviews.'));
     } finally {
       setLoading(false);
     }

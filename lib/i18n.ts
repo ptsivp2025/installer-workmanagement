@@ -29,6 +29,10 @@ export const dict = {
   'common.back': { en: 'Back', id: 'Kembali' },
   'common.loading': { en: 'Loading…', id: 'Memuat…' },
   'common.retry': { en: 'Retry', id: 'Coba Lagi' },
+  'common.requestTimeout': {
+    en: 'The server took too long to respond. Check your connection and try again.',
+    id: 'Server terlalu lama merespons. Periksa koneksi kamu lalu coba lagi.',
+  },
   'common.search': { en: 'Search…', id: 'Cari…' },
   'common.status': { en: 'Status', id: 'Status' },
   'common.actions': { en: 'Actions', id: 'Aksi' },

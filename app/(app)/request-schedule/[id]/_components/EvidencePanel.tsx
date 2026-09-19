@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { Camera, Trash2, Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { errorMessage } from '@/lib/utils';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { ActivityEvidence } from '@/lib/types';
 import { uploadEvidencePhoto, deleteEvidencePhoto } from '@/lib/evidence';
@@ -39,7 +40,7 @@ export function EvidencePanel({
         failedHere.push(file);
         setUploadError(
           files.length === 1
-            ? (e instanceof Error ? e.message : t('evidence.uploadFailed'))
+            ? errorMessage(e, t('evidence.uploadFailed'))
             : t('evidence.someFailed', { failed: failedHere.length, total: files.length }),
         );
       }
