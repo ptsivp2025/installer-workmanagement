@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star,
+  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star, MoreHorizontal,
 } from 'lucide-react';
 import { useAuth, useLanguage } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
@@ -12,7 +12,9 @@ import { supabase } from '@/lib/supabase';
 import { LanguageToggle } from './LanguageToggle';
 import type { DictKey } from '@/lib/i18n';
 
-const NAV: { href: string; labelKey: DictKey; icon: React.ElementType }[] = [
+type NavItem = { href: string; labelKey: DictKey; icon: React.ElementType };
+
+const STAFF_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
   { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock },
@@ -21,17 +23,28 @@ const NAV: { href: string; labelKey: DictKey; icon: React.ElementType }[] = [
   { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
 ];
 
+// An installer's whole job is: see today's work, do the work, done — Form
+// Review (approve/reject) and Project Progress (management reporting)
+// aren't theirs to act on, so they're just clutter in the way of the 3
+// screens an installer actually needs (spec: simpler navigation for a
+// non-technical field user).
+const INSTALLER_NAV: NavItem[] = [
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock },
+  { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
+];
+
 // A Sales Division account only checks progress and rates finished work on
 // its own division's projects (RLS-scoped) — scheduling and internal QC
 // (Form Review) aren't theirs to touch.
-const SALES_NAV: { href: string; labelKey: DictKey; icon: React.ElementType }[] = [
+const SALES_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
   { href: '/project-progress', labelKey: 'nav.projectProgress', icon: FolderKanban },
   { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
 ];
 
-const ADMIN_NAV: { href: string; labelKey: DictKey; icon: React.ElementType } = { href: '/admin/categories', labelKey: 'nav.adminPanel', icon: Settings };
+const ADMIN_NAV: NavItem = { href: '/admin/categories', labelKey: 'nav.adminPanel', icon: Settings };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -39,11 +52,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading, setUserProfile } = useAuth();
   const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [brand, setBrand] = useState<{ company_name: string; logo_url: string | null } | null>(null);
+  const [brand, setBrand] = useState<{ platform_name: string; company_name: string; logo_url: string | null } | null>(null);
 
   useEffect(() => {
-    supabase.from('platform_settings').select('company_name, logo_url').eq('id', true).single()
-      .then((res: { data: { company_name: string; logo_url: string | null } | null }) => setBrand(res.data));
+    supabase.from('platform_settings').select('platform_name, company_name, logo_url').eq('id', true).single()
+      .then((res: { data: { platform_name: string; company_name: string; logo_url: string | null } | null }) => setBrand(res.data));
   }, []);
 
   async function handleLogout() {
@@ -52,32 +65,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   }
 
-  const items = user?.role === 'sales' ? SALES_NAV : user?.role === 'admin' ? [...NAV, ADMIN_NAV] : NAV;
+  const items =
+    user?.role === 'sales' ? SALES_NAV :
+    user?.role === 'installer' ? INSTALLER_NAV :
+    user?.role === 'admin' ? [...STAFF_NAV, ADMIN_NAV] : STAFF_NAV;
+
+  // A short list (installer/sales) gets a thumb-reachable bottom tab bar on
+  // mobile instead of forcing every tap through the hamburger drawer — the
+  // pattern field users already know from Gojek/WhatsApp-style apps. A
+  // longer staff/admin list stays drawer-only (too many items for a bottom
+  // bar to stay readable).
+  const showBottomNav = items.length <= 4;
 
   return (
     <div className="min-h-screen flex">
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-slate-200 z-40 flex items-center justify-between px-4">
         <button onClick={() => setMobileOpen(true)} className="text-slate-600"><Menu className="h-5 w-5" /></button>
-        <span className="font-semibold text-slate-900 text-sm">{brand?.company_name ?? 'Installer Work Management'}</span>
+        <span className="font-semibold text-slate-900 text-sm truncate max-w-[70%]">{brand?.platform_name ?? 'Installer Work Management'}</span>
         <div className="w-5" />
       </div>
 
       {/* Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-white border-r border-slate-200 flex flex-col transition-transform lg:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="h-14 flex items-center justify-between px-5 border-b border-slate-100">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100">
+          <div className="flex items-center gap-2.5 min-w-0">
             {brand?.logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={brand.logo_url} alt="" className="h-8 w-8 rounded-lg object-contain shrink-0" />
+              <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-lg object-contain shrink-0" />
             ) : (
-              <div className="h-8 w-8 rounded-lg bg-brand-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                {(brand?.company_name ?? 'IW').slice(0, 2).toUpperCase()}
+              <div className="h-9 w-9 rounded-lg bg-brand-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
               </div>
             )}
-            <span className="font-semibold text-slate-900 text-sm truncate">{brand?.company_name ?? 'Work Management'}</span>
+            <div className="min-w-0">
+              <p className="font-semibold text-slate-900 text-sm leading-tight truncate">{brand?.platform_name ?? 'Installer Work Management'}</p>
+              <p className="text-[11px] text-slate-400 leading-tight truncate">{brand?.company_name ?? ''}</p>
+            </div>
           </div>
-          <button onClick={() => setMobileOpen(false)} className="lg:hidden text-slate-400"><X className="h-5 w-5" /></button>
+          <button onClick={() => setMobileOpen(false)} className="lg:hidden text-slate-400 shrink-0"><X className="h-5 w-5" /></button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
@@ -121,9 +147,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {mobileOpen && <div className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
-      <main className="flex-1 min-w-0 pt-14 lg:pt-0">
+      <main className={`flex-1 min-w-0 pt-14 lg:pt-0 ${showBottomNav ? 'pb-16 lg:pb-0' : ''}`}>
         <div className="max-w-7xl mx-auto p-4 sm:p-6">{children}</div>
       </main>
+
+      {showBottomNav && (
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-white border-t border-slate-200 z-40 flex items-stretch">
+          {items.map(item => {
+            const Icon = item.icon;
+            const active = pathname === item.href || pathname.startsWith(item.href + '/');
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? 'text-brand-600' : 'text-slate-500'}`}
+              >
+                <Icon className="h-5 w-5" />
+                {t(item.labelKey)}
+              </Link>
+            );
+          })}
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-slate-500"
+          >
+            <MoreHorizontal className="h-5 w-5" />
+            {t('nav.more')}
+          </button>
+        </nav>
+      )}
     </div>
   );
 }

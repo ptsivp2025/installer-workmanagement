@@ -9,6 +9,7 @@ import type { Activity } from '@/lib/types';
 import { useLanguage } from '@/app/providers';
 import type { Lang } from '@/lib/i18n';
 import { translate } from '@/lib/i18n';
+import { GpsCompareMap } from '@/components/shared/GpsCompareMap';
 
 export function ExecutionPanel({
   activity, targetLat, targetLng, canAct, onChanged,
@@ -71,15 +72,21 @@ export function ExecutionPanel({
 
   if (activity.status === 'completed') {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-card p-5 flex items-center gap-3">
-        <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
-        <div>
-          <p className="font-medium text-emerald-800">{t('execution.activityCompleted')}</p>
-          <p className="text-sm text-emerald-700">
-            {activity.gps_validation_status === 'valid' && activity.distance_from_target_m != null &&
-              `${t('execution.gpsValid')} · ${formatDistance(activity.distance_from_target_m)} ${t('formReview.fromTarget')}`}
-          </p>
+      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 space-y-3">
+        <div className="flex items-center gap-3">
+          <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
+          <div>
+            <p className="font-medium text-emerald-800">{t('execution.activityCompleted')}</p>
+            <p className="text-sm text-slate-500">
+              {activity.gps_validation_status === 'valid' && activity.distance_from_target_m != null &&
+                `${t('execution.gpsValid')} · ${formatDistance(activity.distance_from_target_m)} ${t('formReview.fromTarget')}`}
+            </p>
+          </div>
         </div>
+        <GpsCompareMap
+          targetLat={targetLat} targetLng={targetLng}
+          installerLat={activity.execution_latitude} installerLng={activity.execution_longitude}
+        />
       </div>
     );
   }
@@ -126,6 +133,10 @@ export function ExecutionPanel({
             </button>
             {captureError && <p className="text-xs text-red-600 mt-2">{captureError}</p>}
           </div>
+
+          {(reading || hasTarget) && (
+            <GpsCompareMap targetLat={targetLat} targetLng={targetLng} installerLat={reading?.lat ?? null} installerLng={reading?.lng ?? null} />
+          )}
 
           {blockReason && (
             <div className="flex items-start gap-2 rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2.5">

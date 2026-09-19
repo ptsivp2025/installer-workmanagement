@@ -65,6 +65,7 @@ export interface NotificationGroup {
 
 export interface PlatformSettings {
   id: boolean;
+  platform_name: string;
   company_name: string;
   logo_url: string | null;
   timezone: string;

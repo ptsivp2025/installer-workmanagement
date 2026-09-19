@@ -9,6 +9,7 @@ import type { ActivityCategory, PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
 import type { DictKey } from '@/lib/i18n';
+import { InstallerDashboard } from './_components/InstallerDashboard';
 
 interface CategoryCount { category: ActivityCategory; today: number }
 interface DayCount { date: string; label: string; count: number }
@@ -44,6 +45,12 @@ const CATEGORY_PALETTE = [
 ];
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  if (user?.role === 'installer') return <InstallerDashboard />;
+  return <StaffDashboard />;
+}
+
+function StaffDashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(true);

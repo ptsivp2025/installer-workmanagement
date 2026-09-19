@@ -1,17 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2, Users, MapPin } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
-import { LocationPicker } from '@/components/shared/LocationPicker';
 import { SearchInput } from '@/components/shared/SearchInput';
 import type { Activity, ActivityCategory, AppUser } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { PRIORITIES } from '@/lib/constants';
 
-interface ProjectOption { id: string; name: string; code: string; customer_name: string | null; }
+interface ProjectOption { id: string; name: string; code: string; customer_name: string | null; address: string | null; }
 
 export function ActivityFormModal({
   open, onClose, onSaved, categories, activity, defaultProjectId,
@@ -26,9 +25,9 @@ export function ActivityFormModal({
   const [selectedPersonnel, setSelectedPersonnel] = useState<string[]>([]);
   const [primaryPersonnel, setPrimaryPersonnel] = useState<string>('');
   const [form, setForm] = useState({
-    project_id: '', category_id: '', title: '', location_address: '',
+    project_id: '', category_id: '', title: '',
     scheduled_date: '', start_time: '', end_time: '', priority: 'normal', notes: '',
-    target_latitude: '', target_longitude: '', pic_name: '', pic_phone: '',
+    pic_name: '', pic_phone: '',
     product_brand: '', product_type: '', product_model: '',
   });
   const [saving, setSaving] = useState(false);
@@ -39,7 +38,7 @@ export function ActivityFormModal({
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('projects').select('id, name, code, customer_name').eq('status', 'active').order('name').limit(200)
+    supabase.from('projects').select('id, name, code, customer_name, address').eq('status', 'active').order('name').limit(200)
       .then((res: { data: ProjectOption[] | null }) => setProjects(res.data ?? []));
     supabase.from('users').select('*').eq('active', true).order('full_name')
       .then((res: { data: AppUser[] | null }) => setUsers(res.data ?? []));
@@ -50,18 +49,16 @@ export function ActivityFormModal({
     if (activity) {
       setForm({
         project_id: activity.project_id, category_id: activity.category_id, title: activity.title,
-        location_address: activity.location_address ?? '',
         scheduled_date: activity.scheduled_date, start_time: activity.start_time ?? '', end_time: activity.end_time ?? '',
         priority: activity.priority, notes: activity.notes ?? '',
-        target_latitude: activity.target_latitude?.toString() ?? '', target_longitude: activity.target_longitude?.toString() ?? '',
         pic_name: activity.pic_name ?? '', pic_phone: activity.pic_phone ?? '',
         product_brand: activity.product_brand ?? '', product_type: activity.product_type ?? '', product_model: activity.product_model ?? '',
       });
     } else {
       setForm({
         project_id: defaultProjectId ?? '', category_id: categories.find(c => c.active)?.id ?? '', title: '',
-        location_address: '', scheduled_date: new Date().toISOString().slice(0, 10),
-        start_time: '', end_time: '', priority: 'normal', notes: '', target_latitude: '', target_longitude: '',
+        scheduled_date: new Date().toISOString().slice(0, 10),
+        start_time: '', end_time: '', priority: 'normal', notes: '',
         pic_name: '', pic_phone: '', product_brand: '', product_type: '', product_model: '',
       });
     }
@@ -112,14 +109,11 @@ export function ActivityFormModal({
         category_id: form.category_id,
         title: form.title.trim(),
         customer_name: project?.customer_name ?? null,
-        location_address: form.location_address.trim() || null,
         scheduled_date: form.scheduled_date,
         start_time: form.start_time || null,
         end_time: form.end_time || null,
         priority: form.priority,
         notes: form.notes.trim() || null,
-        target_latitude: form.target_latitude ? Number(form.target_latitude) : null,
-        target_longitude: form.target_longitude ? Number(form.target_longitude) : null,
         pic_name: form.pic_name.trim() || null,
         pic_phone: form.pic_phone.trim() || null,
         ...productFields,
@@ -149,14 +143,14 @@ export function ActivityFormModal({
       p_category_id: form.category_id,
       p_title: form.title.trim(),
       p_customer_name: project?.customer_name ?? null,
-      p_location_address: form.location_address.trim() || null,
+      p_location_address: null,
       p_scheduled_date: form.scheduled_date,
       p_start_time: form.start_time || null,
       p_end_time: form.end_time || null,
       p_priority: form.priority,
       p_notes: form.notes.trim() || null,
-      p_target_latitude: form.target_latitude ? Number(form.target_latitude) : null,
-      p_target_longitude: form.target_longitude ? Number(form.target_longitude) : null,
+      p_target_latitude: null,
+      p_target_longitude: null,
       p_pic_name: form.pic_name.trim() || null,
       p_pic_phone: form.pic_phone.trim() || null,
       p_product_brand: productFields.product_brand,
@@ -209,15 +203,16 @@ export function ActivityFormModal({
             <input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} className={inputCls} />
           </Field>
         </div>
-        <div>
-          <LocationPicker
-            address={form.location_address}
-            latitude={form.target_latitude}
-            longitude={form.target_longitude}
-            onChange={(location_address, target_latitude, target_longitude) => setForm(f => ({ ...f, location_address, target_latitude, target_longitude }))}
-          />
-          <p className="text-xs text-slate-400 mt-1">{t('activity.fallbackToProject')}</p>
-        </div>
+        {form.project_id && (
+          <div className="rounded-control border border-slate-200 bg-slate-50 px-3.5 py-2.5 flex items-start gap-2">
+            <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-slate-500">{t('activity.location')}</p>
+              <p className="text-sm text-slate-700 truncate">{projects.find(p => p.id === form.project_id)?.address || t('activity.projectLocationNotSet')}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{t('activity.locationFromProjectHint')}</p>
+            </div>
+          </div>
+        )}
 
         {needsProduct && (
           <div className="rounded-control border border-slate-200 bg-slate-50 p-3.5 space-y-3">

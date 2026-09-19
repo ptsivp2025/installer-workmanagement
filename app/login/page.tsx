@@ -27,7 +27,7 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [brand, setBrand] = useState<{
-    company_name: string; logo_url: string | null; login_bg_url: string | null;
+    platform_name: string; company_name: string; logo_url: string | null; login_bg_url: string | null;
     login_headline: string | null; login_subheadline: string | null;
     primary_color: string; secondary_color: string;
   } | null>(null);
@@ -81,10 +81,10 @@ function LoginForm() {
               <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-xl object-contain bg-white/15 backdrop-blur" />
             ) : (
               <div className="h-9 w-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center font-bold text-lg">
-                {(brand?.company_name ?? 'IW').slice(0, 2).toUpperCase()}
+                {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
               </div>
             )}
-            <span className="text-lg font-bold tracking-tight">{brand?.company_name ?? 'Installer Work Management'}</span>
+            <span className="text-lg font-bold tracking-tight">{brand?.platform_name ?? 'Installer Work Management'}</span>
           </div>
           <LanguageToggle dark />
         </div>
@@ -117,10 +117,10 @@ function LoginForm() {
                 <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-xl object-contain" />
               ) : (
                 <div className="h-9 w-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold">
-                  {(brand?.company_name ?? 'IW').slice(0, 2).toUpperCase()}
+                  {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
                 </div>
               )}
-              <span className="text-lg font-bold text-slate-900">{brand?.company_name ?? 'Installer Work Management'}</span>
+              <span className="text-lg font-bold text-slate-900">{brand?.platform_name ?? 'Installer Work Management'}</span>
             </div>
             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{t('login.welcomeBack')}</h2>
             <p className="text-slate-500 text-sm mt-1.5">{t('login.signInToContinue')}</p>

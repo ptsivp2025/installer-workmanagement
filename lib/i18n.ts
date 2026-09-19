@@ -79,6 +79,7 @@ export const dict = {
   'nav.salesReview': { en: 'Sales Review', id: 'Ulasan Sales' },
   'nav.adminPanel': { en: 'Admin Panel', id: 'Panel Admin' },
   'nav.language': { en: 'Language', id: 'Bahasa' },
+  'nav.more': { en: 'More', id: 'Lainnya' },
 
   // ── login ────────────────────────────────────────────────────────────
   'login.tagline': { en: 'Every job, one source of truth.', id: 'Setiap pekerjaan, satu sumber kebenaran.' },
@@ -123,6 +124,10 @@ export const dict = {
   'dashboard.noPreviousDemo': { en: 'No Previous Demo', id: 'Tanpa Demo Sebelumnya' },
   'dashboard.demoOnlyProjects': { en: 'Demo Only (No Purchase Yet)', id: 'Baru Demo (Belum Beli)' },
   'dashboard.completedShort': { en: 'completed', id: 'selesai' },
+  'dashboard.installerSubtitle': { en: "Here's your work.", id: 'Ini tugas Anda.' },
+  'dashboard.yourTasks': { en: 'Your Tasks', id: 'Tugas Anda' },
+  'dashboard.noTasksForYou': { en: 'No tasks assigned to you right now.', id: 'Belum ada tugas untuk Anda saat ini.' },
+  'dashboard.installerFailedToLoad': { en: 'Failed to load your tasks.', id: 'Gagal memuat tugas Anda.' },
 
   // ── projects ─────────────────────────────────────────────────────────
   'projects.title': { en: 'Projects', id: 'Proyek' },
@@ -170,7 +175,8 @@ export const dict = {
   'activity.scheduledDate': { en: 'Scheduled Date', id: 'Tanggal Jadwal' },
   'activity.startTime': { en: 'Start Time', id: 'Jam Mulai' },
   'activity.endTime': { en: 'End Time', id: 'Jam Selesai' },
-  'activity.fallbackToProject': { en: "Leave blank to fall back to the project's location.", id: 'Kosongkan untuk memakai lokasi proyek.' },
+  'activity.locationFromProjectHint': { en: 'Set once on the project — edit it from the Project page if it needs to change.', id: 'Diatur sekali di proyek — ubah dari halaman Proyek kalau perlu diganti.' },
+  'activity.projectLocationNotSet': { en: 'No location set on this project yet.', id: 'Proyek ini belum punya lokasi.' },
   'activity.siteContact': { en: 'Site Contact (customer/vendor side)', id: 'Kontak Lokasi (pihak pelanggan/vendor)' },
   'activity.siteContactHint': { en: "Who to coordinate with on site — not the installer team below.", id: 'Orang yang dihubungi di lokasi — bukan tim installer di bawah.' },
   'activity.picName': { en: 'Contact Name', id: 'Nama Kontak' },
@@ -219,6 +225,7 @@ export const dict = {
   'activity.primaryPicLabel': { en: 'Primary PIC', id: 'PIC Utama' },
   'activity.supportTeamLabel': { en: 'Support Team', id: 'Tim Pendukung' },
   'activity.productLabel': { en: 'Product', id: 'Produk' },
+  'activity.moreDetails': { en: 'More details', id: 'Detail Lainnya' },
 
   'priority.low': { en: 'Low', id: 'Rendah' },
   'priority.normal': { en: 'Normal', id: 'Normal' },
@@ -233,6 +240,7 @@ export const dict = {
   // execution panel
   'execution.title': { en: 'Execution', id: 'Pelaksanaan' },
   'execution.targetLabel': { en: 'Target', id: 'Target' },
+  'execution.installerLabel': { en: 'Installer', id: 'Installer' },
   'execution.radius': { en: 'radius', id: 'radius' },
   'execution.startExecution': { en: 'Start Execution', id: 'Mulai Pelaksanaan' },
   'execution.gpsCaptured': { en: 'GPS Captured', id: 'GPS Tertangkap' },
@@ -429,6 +437,11 @@ export const dict = {
   'adminSettings.showCategoryBreakdown': { en: 'Show category breakdown on Dashboard', id: 'Tampilkan rincian kategori di Dasbor' },
   'adminSettings.saveSettings': { en: 'Save Settings', id: 'Simpan Pengaturan' },
   'adminSettings.companyNameRequired': { en: 'Company name is required.', id: 'Nama perusahaan wajib diisi.' },
+  'adminSettings.preview': { en: 'Preview', id: 'Pratinjau' },
+  'adminSettings.platformName': { en: 'Platform Name', id: 'Nama Platform' },
+  'adminSettings.platformNameHint': { en: 'The bold title shown in the sidebar and login page header.', id: 'Judul tebal yang tampil di sidebar dan header halaman login.' },
+  'adminSettings.platformNameRequired': { en: 'Platform name is required.', id: 'Nama platform wajib diisi.' },
+  'adminSettings.resetToDefault': { en: 'Reset to default', id: 'Kembalikan ke bawaan' },
   'adminSettings.themeSection': { en: 'Theme', id: 'Tema' },
   'adminSettings.primaryColor': { en: 'Primary Color', id: 'Warna Utama' },
   'adminSettings.secondaryColor': { en: 'Secondary Color', id: 'Warna Kedua' },

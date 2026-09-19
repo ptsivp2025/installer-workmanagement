@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star } from 'lucide-react';
+import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview, ActivityDiscountEligibility } from '@/lib/types';
@@ -123,38 +123,22 @@ export default function ActivityDetailPage() {
           </div>
         </div>
 
+        {/* Only the who/what/when/where an installer needs at a glance —
+            everything else is one tap away under "More details" so the
+            action panels below aren't pushed off-screen (spec: simpler UI
+            for a non-technical field user). */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-sm">
           <InfoRow label={t('activity.project')}>
             <Link href={`/projects/${activity.project_id}`} className="text-brand-600 hover:underline">{activity.projects?.name}</Link>
           </InfoRow>
-          <InfoRow label={t('activity.customer')}>{activity.customer_name || '—'}</InfoRow>
           <InfoRow label={t('activity.scheduled')}><span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{formatDate(activity.scheduled_date)}{activity.start_time ? ` · ${activity.start_time.slice(0, 5)}` : ''}</span></InfoRow>
           <InfoRow label={t('activity.location')}><span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{activity.location_address || '—'}</span></InfoRow>
-          <InfoRow label={t('activity.priority')}><span className="capitalize">{t(`priority.${activity.priority}` as DictKey)}</span></InfoRow>
-          <InfoRow label={t('activity.completed')}>{formatDateTime(activity.completed_at)}</InfoRow>
+          {(activity.product_brand || activity.product_type) && (
+            <InfoRow label={t('activity.productLabel')}>
+              <span className="inline-flex items-center gap-1"><Package className="h-3.5 w-3.5" />{[activity.product_brand, activity.product_type].filter(Boolean).join(' ')}{activity.product_model && ` · ${activity.product_model}`}</span>
+            </InfoRow>
+          )}
         </div>
-
-        {(activity.product_brand || activity.product_type) && (
-          <div className="mt-3 flex items-center gap-1.5 text-sm text-slate-600">
-            <Package className="h-3.5 w-3.5 text-slate-400" />
-            {t('activity.productLabel')}: {[activity.product_brand, activity.product_type].filter(Boolean).join(' ')}
-            {activity.product_model && ` · ${activity.product_model}`}
-          </div>
-        )}
-
-        {primaryPersonnel && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
-            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-            {t('activity.primaryPicLabel')}: {primaryPersonnel.name}
-          </div>
-        )}
-
-        {(activity.pic_name || activity.pic_phone) && (
-          <div className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
-            <UserRound className="h-3.5 w-3.5 text-slate-400" />
-            {t('activity.picLabel')}: {activity.pic_name || '—'}{activity.pic_phone && ` · ${activity.pic_phone}`}
-          </div>
-        )}
 
         {discount && (
           <Link href={`/request-schedule/${discount.demo_activity_id}`} className="mt-3 flex items-start gap-2 rounded-control bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2.5 hover:bg-amber-100 transition">
@@ -166,14 +150,43 @@ export default function ActivityDetailPage() {
           </Link>
         )}
 
-        {activity.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{activity.notes}</p>}
+        {(activity.customer_name || activity.priority !== 'normal' || activity.completed_at || primaryPersonnel || activity.pic_name || activity.pic_phone || activity.notes || review) && (
+          <details className="mt-3 group">
+            <summary className="flex items-center gap-1 text-sm font-medium text-slate-500 hover:text-slate-700 cursor-pointer list-none">
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" /> {t('activity.moreDetails')}
+            </summary>
+            <div className="mt-3 space-y-2.5 pl-5 border-l-2 border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                {activity.customer_name && <InfoRow label={t('activity.customer')}>{activity.customer_name}</InfoRow>}
+                <InfoRow label={t('activity.priority')}><span className="capitalize">{t(`priority.${activity.priority}` as DictKey)}</span></InfoRow>
+                {activity.completed_at && <InfoRow label={t('activity.completed')}>{formatDateTime(activity.completed_at)}</InfoRow>}
+              </div>
 
-        {review && (
-          <div className="mt-3 flex items-center gap-2 text-sm">
-            <ClipboardCheck className="h-4 w-4 text-slate-400" />
-            <span className="text-slate-500">{t('activity.formReview')}:</span>
-            <StatusBadge status={review.status} />
-          </div>
+              {primaryPersonnel && (
+                <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
+                  {t('activity.primaryPicLabel')}: {primaryPersonnel.name}
+                </div>
+              )}
+
+              {(activity.pic_name || activity.pic_phone) && (
+                <div className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <UserRound className="h-3.5 w-3.5 text-slate-400" />
+                  {t('activity.picLabel')}: {activity.pic_name || '—'}{activity.pic_phone && ` · ${activity.pic_phone}`}
+                </div>
+              )}
+
+              {activity.notes && <p className="text-sm text-slate-600 bg-slate-50 rounded-control p-3">{activity.notes}</p>}
+
+              {review && (
+                <div className="flex items-center gap-2 text-sm">
+                  <ClipboardCheck className="h-4 w-4 text-slate-400" />
+                  <span className="text-slate-500">{t('activity.formReview')}:</span>
+                  <StatusBadge status={review.status} />
+                </div>
+              )}
+            </div>
+          </details>
         )}
 
         {canEditSchedule && !locked && (

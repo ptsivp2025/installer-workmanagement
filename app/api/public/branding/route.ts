@@ -12,10 +12,11 @@ export async function GET() {
   const supabase = getAdminClient();
   const { data } = await supabase
     .from('platform_settings')
-    .select('company_name, logo_url, primary_color, secondary_color, login_bg_url, login_headline, login_subheadline')
+    .select('platform_name, company_name, logo_url, primary_color, secondary_color, login_bg_url, login_headline, login_subheadline')
     .eq('id', true)
     .single();
   return NextResponse.json({
+    platform_name: data?.platform_name ?? 'Installer Work Management',
     company_name: data?.company_name ?? 'Installer Work Management',
     logo_url: data?.logo_url ?? null,
     primary_color: data?.primary_color ?? '#2563eb',
