@@ -3,16 +3,11 @@ export const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours, matches TOKEN
 export const ROLES = ['admin', 'supervisor', 'installer', 'reviewer', 'sales'] as const;
 export type Role = (typeof ROLES)[number];
 
-export function roleLabel(role: string): string {
-  switch (role) {
-    case 'admin': return 'Admin';
-    case 'supervisor': return 'Supervisor';
-    case 'installer': return 'Installer';
-    case 'reviewer': return 'Reviewer';
-    case 'sales': return 'Sales Division';
-    default: return role;
-  }
-}
+// Job title, tracked separately from `role`: role decides what the platform
+// lets you do, position is who you are in the org chart (a Manager and a
+// Staff can both be 'installer').
+export const POSITIONS = ['staff', 'senior_staff', 'supervisor', 'manager', 'director'] as const;
+export type Position = (typeof POSITIONS)[number];
 
 export const ACTIVITY_STATUSES = ['scheduled', 'in_progress', 'completed', 'cancelled'] as const;
 export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
@@ -25,13 +20,6 @@ export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
 export const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
 export type Priority = (typeof PRIORITIES)[number];
-
-export const GPS_VALIDATION_STATUSES = ['valid', 'outside_radius', 'low_accuracy', 'unavailable', 'denied'] as const;
-export type GpsValidationStatus = (typeof GPS_VALIDATION_STATUSES)[number];
-
-export function statusLabel(status: string): string {
-  return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
 
 export function statusColor(status: string): string {
   switch (status) {

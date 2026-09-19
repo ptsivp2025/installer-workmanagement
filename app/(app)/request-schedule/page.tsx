@@ -13,7 +13,7 @@ import { formatDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
-import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
+import { LoadingState, SkeletonList, ErrorState, EmptyState } from '@/components/shared/States';
 import { ActivityFormModal } from './_components/ActivityFormModal';
 
 const PAGE_SIZE = 15;
@@ -104,7 +104,7 @@ function RequestScheduleContent() {
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
         {loading ? (
-          <LoadingState />
+          <SkeletonList rows={6} />
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
         ) : activities.length === 0 ? (
@@ -113,7 +113,7 @@ function RequestScheduleContent() {
           <>
             <div className="divide-y divide-slate-100">
               {activities.map(a => (
-                <Link key={a.id} href={`/request-schedule/${a.id}`} className="flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 transition">
+                <Link key={a.id} href={`/request-schedule/${a.id}`} className="stagger-item flex items-center gap-4 px-4 py-3.5 hover:bg-slate-50 transition">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-semibold text-brand-700 uppercase">{a.activity_categories?.name}</span>

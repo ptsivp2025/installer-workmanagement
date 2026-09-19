@@ -8,7 +8,7 @@ import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
-import { LoadingState, ErrorState } from '@/components/shared/States';
+import { SkeletonCards, SkeletonList, ErrorState } from '@/components/shared/States';
 
 /**
  * A field installer's whole job on this app: see what's assigned to them,
@@ -62,9 +62,14 @@ export function InstallerDashboard() {
         </button>
       </div>
 
-      {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (
+      {loading ? (
+        <div className="space-y-6">
+          <SkeletonCards count={2} />
+          <div className="bg-white rounded-card border border-slate-200"><SkeletonList rows={4} /></div>
+        </div>
+      ) : error ? <ErrorState message={error} onRetry={load} /> : (
         <>
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-3 mb-6 animate-slide-up">
             <div className="bg-white rounded-card border border-slate-200 shadow-card p-4 flex items-center gap-3">
               <span className="h-10 w-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><ClipboardList className="h-5 w-5" /></span>
               <div>
@@ -81,9 +86,9 @@ export function InstallerDashboard() {
             </div>
           </div>
 
-          <h2 className="font-semibold text-slate-900 mb-3">{t('dashboard.yourTasks')}</h2>
+          <h2 className="font-semibold text-slate-900 mb-3 animate-slide-up anim-d80">{t('dashboard.yourTasks')}</h2>
           {tasks.length === 0 ? (
-            <div className="bg-white rounded-card border border-slate-200 shadow-card p-8 text-center">
+            <div className="bg-white rounded-card border border-slate-200 shadow-card p-8 text-center animate-zoom-in">
               <ClipboardList className="h-10 w-10 text-slate-300 mx-auto mb-2" />
               <p className="text-sm text-slate-400">{t('dashboard.noTasksForYou')}</p>
             </div>
@@ -93,7 +98,7 @@ export function InstallerDashboard() {
                 <Link
                   key={a.id}
                   href={`/request-schedule/${a.id}`}
-                  className="block bg-white rounded-card border border-slate-200 shadow-card p-4 hover:shadow-modal transition active:scale-[0.99]"
+                  className="stagger-item block bg-white rounded-card border border-slate-200 shadow-card p-4 hover:shadow-modal transition active:scale-[0.99]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">

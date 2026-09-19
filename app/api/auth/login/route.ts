@@ -43,11 +43,11 @@ export async function POST(request: NextRequest) {
 
     const { data: user, error: userErr } = await supabase
       .from('users')
-      .select('id, username, full_name, role, active')
+      .select('id, username, full_name, role, active, approval_status, rejection_reason')
       .eq('username', username)
       .single();
 
-    if (userErr || !user || !user.active) {
+    if (userErr || !user) {
       await supabase.from('login_attempts').insert({ username, ip_address: ip, success: false });
       return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
     }
@@ -61,6 +61,25 @@ export async function POST(request: NextRequest) {
     if (!cred?.password_hash || !(await bcrypt.compare(password, cred.password_hash))) {
       await supabase.from('login_attempts').insert({ username, ip_address: ip, success: false });
       return NextResponse.json({ error: 'Invalid username or password.' }, { status: 401 });
+    }
+
+    // Only AFTER the password checks out do we say anything specific about
+    // the account's state — telling an anonymous caller "this one is pending
+    // approval" before that would confirm the username exists to anyone
+    // guessing. Someone who just registered knows their own password, so
+    // they get the real reason; an attacker still only ever sees the
+    // generic message above.
+    if (user.approval_status === 'pending') {
+      await supabase.from('login_attempts').insert({ username, ip_address: ip, success: false });
+      return NextResponse.json({ error: 'PENDING_APPROVAL' }, { status: 403 });
+    }
+    if (user.approval_status === 'rejected') {
+      await supabase.from('login_attempts').insert({ username, ip_address: ip, success: false });
+      return NextResponse.json({ error: 'REGISTRATION_REJECTED', reason: user.rejection_reason ?? null }, { status: 403 });
+    }
+    if (!user.active) {
+      await supabase.from('login_attempts').insert({ username, ip_address: ip, success: false });
+      return NextResponse.json({ error: 'ACCOUNT_INACTIVE' }, { status: 403 });
     }
 
     await supabase.from('login_attempts').insert({ username, ip_address: ip, success: true });

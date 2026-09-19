@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star, MoreHorizontal,
+  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star, MoreHorizontal, UserRound,
 } from 'lucide-react';
 import { useAuth, useLanguage } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { LanguageToggle } from './LanguageToggle';
+import { ProfileModal } from './ProfileModal';
 import { AdminPanelModal } from '@/app/(app)/admin/_components/AdminPanelModal';
 import type { DictKey } from '@/lib/i18n';
 
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [brand, setBrand] = useState<{ platform_name: string; company_name: string; logo_url: string | null } | null>(null);
 
   useEffect(() => {
@@ -148,14 +150,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="px-2"><LanguageToggle /></div>
           {!loading && user && (
             <div className="flex items-center gap-2 px-2 py-2">
-              <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600">
+              <button
+                onClick={() => { setProfileOpen(true); setMobileOpen(false); }}
+                title={t('profile.openProfile')}
+                className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-600 shrink-0 hover:bg-slate-300 transition"
+              >
                 {user.full_name?.charAt(0) ?? user.username.charAt(0)}
-              </div>
-              <div className="min-w-0 flex-1">
+              </button>
+              <button
+                onClick={() => { setProfileOpen(true); setMobileOpen(false); }}
+                className="min-w-0 flex-1 text-left"
+              >
                 <p className="text-sm font-medium text-slate-800 truncate">{user.full_name || user.username}</p>
                 <p className="text-xs text-slate-400">{t(`role.${user.role}` as DictKey)}</p>
-              </div>
-              <button onClick={handleLogout} title={t('common.signOut')} className="text-slate-400 hover:text-red-500">
+              </button>
+              <button
+                onClick={() => { setProfileOpen(true); setMobileOpen(false); }}
+                title={t('profile.openProfile')}
+                className="text-slate-400 hover:text-brand-600 shrink-0"
+              >
+                <UserRound className="h-4 w-4" />
+              </button>
+              <button onClick={handleLogout} title={t('common.signOut')} className="text-slate-400 hover:text-red-500 shrink-0">
                 <LogOut className="h-4 w-4" />
               </button>
             </div>
@@ -166,7 +182,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {mobileOpen && <div className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />}
 
       <main className={`flex-1 min-w-0 pt-14 lg:pt-0 ${showBottomNav ? 'pb-16 lg:pb-0' : ''}`}>
-        <div className="max-w-7xl mx-auto p-4 sm:p-6">{children}</div>
+        {/* key={pathname} restarts the entrance animation on every
+            navigation — without it React reuses the node and the new page
+            simply appears. */}
+        <div key={pathname} className="max-w-7xl mx-auto p-4 sm:p-6 animate-fade-in">{children}</div>
       </main>
 
       {showBottomNav && (
@@ -207,6 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       )}
 
+      <ProfileModal open={profileOpen} onClose={() => setProfileOpen(false)} />
       <AdminPanelModal open={adminOpen} onClose={() => setAdminOpen(false)} />
     </div>
   );

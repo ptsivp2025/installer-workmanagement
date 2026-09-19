@@ -167,11 +167,19 @@ export interface AppUser {
   full_name: string;
   role: string;
   phone: string | null;
+  email: string | null;
+  position: string | null;
   telegram_chat_id: string | null;
   sales_division_id: string | null;
   active: boolean;
+  approval_status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  registered_at: string | null;
   created_at: string;
   updated_at: string;
+  sales_divisions?: Pick<SalesDivision, 'id' | 'name' | 'code'>;
 }
 
 export interface SalesReview {

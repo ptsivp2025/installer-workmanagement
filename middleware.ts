@@ -5,9 +5,17 @@ const PUBLIC_PREFIXES = ['/_next/', '/favicon', '/icon'];
 
 const PUBLIC_EXACT = [
   '/login',
+  // Self-registration is by definition reached without a session, and so
+  // are the two reads its form needs (branding for the hero, the division
+  // list for the dropdown) — every one of them is already write-guarded or
+  // read-only on its own side.
+  '/register',
   '/api/auth/login',
   '/api/auth/logout',
   '/api/auth/session',
+  '/api/auth/register',
+  '/api/public/branding',
+  '/api/public/sales-divisions',
 ];
 
 const CRON_PREFIX = '/api/cron/';

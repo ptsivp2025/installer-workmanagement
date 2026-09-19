@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, Loader2, CalendarClock, Navigation, Camera, ClipboardCheck, Eye, EyeOff } from 'lucide-react';
 import { setSession } from '@/lib/auth';
@@ -48,7 +49,16 @@ function LoginForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? 'Login failed.');
+        // The API answers account-state problems with a code rather than a
+        // sentence so the reason can be shown in the user's own language.
+        const byCode: Record<string, string> = {
+          PENDING_APPROVAL: t('login.pendingApproval'),
+          REGISTRATION_REJECTED: data.reason
+            ? `${t('login.registrationRejected')} ${data.reason}`
+            : t('login.registrationRejected'),
+          ACCOUNT_INACTIVE: t('login.accountInactive'),
+        };
+        setError(byCode[data.error] ?? data.error ?? 'Login failed.');
         return;
       }
       setSession(data.user);
@@ -171,6 +181,11 @@ function LoginForm() {
               {t('login.signIn')}
             </button>
           </form>
+
+          <p className="text-center text-sm text-slate-500 mt-5">
+            {t('login.noAccount')}{' '}
+            <Link href="/register" className="font-semibold text-brand-600 hover:text-brand-700">{t('login.registerHere')}</Link>
+          </p>
         </div>
       </div>
     </div>

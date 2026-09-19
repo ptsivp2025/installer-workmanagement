@@ -10,12 +10,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   const requester = await getSessionUser(request);
   if (!requester || requester.role !== 'admin') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
 
-  const { full_name, role, phone, active, new_password, sales_division_id } = await request.json();
+  const { full_name, role, phone, email, position, active, new_password, sales_division_id } = await request.json();
   const supabase = getAdminClient();
 
   const updates: Record<string, unknown> = {};
   if (full_name !== undefined) updates.full_name = String(full_name).trim();
   if (phone !== undefined) updates.phone = phone ? String(phone).trim() : null;
+  if (email !== undefined) updates.email = email ? String(email).trim() : null;
+  if (position !== undefined) updates.position = position ? String(position).trim() : null;
   if (active !== undefined) updates.active = Boolean(active);
   if (role !== undefined) {
     if (!ROLES.includes(role)) return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
