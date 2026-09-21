@@ -15,6 +15,9 @@ export type ActivityStatus = (typeof ACTIVITY_STATUSES)[number];
 export const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'cancelled'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+export const PROJECT_REQUEST_STATUSES = ['pending', 'approved', 'rejected'] as const;
+export type ProjectRequestStatus = (typeof PROJECT_REQUEST_STATUSES)[number];
+
 export const REVIEW_STATUSES = ['pending', 'approved', 'rejected'] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 

@@ -11,6 +11,7 @@ import { formatDate, formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ActivityFormModal } from '../_components/ActivityFormModal';
+import { SalesRescheduleModal } from '../_components/SalesRescheduleModal';
 import { PersonnelPanel } from './_components/PersonnelPanel';
 import { EvidencePanel } from './_components/EvidencePanel';
 import { ExecutionPanel } from './_components/ExecutionPanel';
@@ -97,6 +98,12 @@ export default function ActivityDetailPage() {
   if (error || !activity) return <ErrorState message={error ?? t('activity.notFound')} onRetry={load} />;
 
   const canEditSchedule = user && ['admin', 'supervisor'].includes(user.role);
+  // If this page loaded for a Sales account at all, RLS (activities_select,
+  // 014) already means the activity's project is their own division — no
+  // extra division check needed client-side. Scoped to date/time/priority/
+  // notes only; everything else the server-side guard trigger refuses
+  // (021_sales_reschedule.sql), so the UI never even offers it.
+  const canReschedule = user?.role === 'sales';
   const targetLat = activity.target_latitude ?? projectLatLng.lat;
   const targetLng = activity.target_longitude ?? projectLatLng.lng;
   const locked = activity.status === 'completed' || activity.status === 'cancelled';
@@ -117,8 +124,8 @@ export default function ActivityDetailPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <StatusBadge status={activity.status} />
-            {canEditSchedule && !locked && (
-              <button onClick={() => setEditOpen(true)} className="text-slate-400 hover:text-slate-600"><Pencil className="h-4 w-4" /></button>
+            {(canEditSchedule || canReschedule) && !locked && (
+              <button onClick={() => setEditOpen(true)} title={canEditSchedule ? t('activity.editActivity') : t('activity.reschedule')} className="text-slate-400 hover:text-slate-600"><Pencil className="h-4 w-4" /></button>
             )}
           </div>
         </div>
@@ -209,13 +216,22 @@ export default function ActivityDetailPage() {
         />
       </div>
 
-      <ActivityFormModal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        onSaved={() => { setEditOpen(false); load(); }}
-        categories={categories}
-        activity={activity}
-      />
+      {canEditSchedule ? (
+        <ActivityFormModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); load(); }}
+          categories={categories}
+          activity={activity}
+        />
+      ) : (
+        <SalesRescheduleModal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setEditOpen(false); load(); }}
+          activity={activity}
+        />
+      )}
     </div>
   );
 }

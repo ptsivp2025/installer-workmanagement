@@ -45,6 +45,30 @@ export interface SalesDivision {
   updated_at: string;
 }
 
+export interface ProjectRequest {
+  id: string;
+  requested_by: string;
+  sales_division_id: string;
+  project_name: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  category_id: string | null;
+  requested_date: string | null;
+  notes: string | null;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  resulting_project_id: string | null;
+  created_at: string;
+  users?: { full_name: string | null; username: string } | null;
+  sales_divisions?: { name: string } | null;
+  activity_categories?: { name: string } | null;
+}
+
 export interface NotificationSettings {
   id: boolean;
   telegram_bot_token: string | null;
