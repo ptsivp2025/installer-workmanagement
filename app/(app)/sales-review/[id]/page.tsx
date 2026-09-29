@@ -69,12 +69,12 @@ export default function SalesReviewDetailPage() {
     <div className="max-w-2xl mx-auto">
       <BackButton fallbackHref="/sales-review" />
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="text-xs font-semibold text-brand-700 uppercase">{activity.activity_categories?.name}</span>
-            <h1 className="text-lg font-semibold text-slate-900">{activity.title}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">{activity.title}</h1>
+            <p className="text-[12.5px] text-slate-500 mt-0.5">
               <Link href={`/projects/${activity.project_id}`} className="text-brand-600 hover:underline">{activity.projects?.name}</Link>
               {' · '}{formatDate(activity.scheduled_date)}
             </p>
@@ -85,7 +85,7 @@ export default function SalesReviewDetailPage() {
       </div>
 
       {review.status === 'submitted' && (
-        <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
+        <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4">
           <p className="text-sm text-slate-500 mb-2">{t('salesReview.submittedRating')}</p>
           <div className="flex items-center gap-1 mb-2">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -98,7 +98,7 @@ export default function SalesReviewDetailPage() {
       )}
 
       {canSubmit && (
-        <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+        <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
           <label className="block text-sm font-medium text-slate-700 mb-2">{t('salesReview.rating')}</label>
           <div className="flex items-center gap-1 mb-4">
             {Array.from({ length: 5 }).map((_, i) => (

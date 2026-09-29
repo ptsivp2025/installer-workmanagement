@@ -165,7 +165,7 @@ export function EvidencePanel({
   const canDelete = (item: ActivityEvidence) => !locked && (user?.role === 'admin' || user?.role === 'supervisor' || item.uploader_id === user?.id);
 
   return (
-    <div id="evidence" className="bg-white rounded-card border border-slate-200 shadow-card p-5 scroll-mt-32">
+    <div id="evidence" className="bg-white rounded-card border border-slate-200 shadow-bento p-5 scroll-mt-32">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-slate-900 flex items-center gap-2"><Camera className="h-4 w-4" /> {t('evidence.title')}</h3>
         <span className={`text-sm font-medium ${evidence.length < minRequired ? 'text-amber-600' : 'text-slate-500'}`}>

@@ -59,10 +59,10 @@ export default function ProjectProgressListPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('nav.projectProgress')}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{t('projectProgress.subtitle')}</p>
+          <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{t('nav.projectProgress')}</h1>
+          <p className="text-[12.5px] text-slate-500 mt-0.5">{t('projectProgress.subtitle')}</p>
         </div>
         <button onClick={load} title={t('common.refresh')} aria-label={t('common.refresh')} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
@@ -83,7 +83,7 @@ export default function ProjectProgressListPage() {
             const c = counts[p.id] ?? { total: 0, completed: 0, inProgress: 0 };
             const pct = c.total === 0 ? 0 : Math.round((c.completed / c.total) * 100);
             return (
-              <Link key={p.id} href={`/project-progress/${p.id}`} className="bg-white rounded-card border border-slate-200 shadow-card p-4 hover:shadow-modal transition">
+              <Link key={p.id} href={`/project-progress/${p.id}`} className="bg-white rounded-card border border-slate-200 shadow-bento p-4 hover:shadow-modal transition">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
                     <p className="font-medium text-slate-900 truncate">{p.name}</p>

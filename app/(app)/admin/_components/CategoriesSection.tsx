@@ -52,7 +52,7 @@ export function CategoriesSection() {
         </button>
       </div>
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500 uppercase">

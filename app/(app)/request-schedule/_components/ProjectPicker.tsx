@@ -6,7 +6,10 @@ import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import { ilikeAny } from '@/lib/utils';
 
-export interface ProjectOption { id: string; name: string; code: string; customer_name: string | null; address: string | null; }
+export interface ProjectOption {
+  id: string; name: string; code: string; customer_name: string | null; address: string | null;
+  latitude?: number | null; longitude?: number | null;
+}
 
 /**
  * Type-to-search project field. It replaces a plain <select> of the first 200
@@ -31,7 +34,7 @@ export function ProjectPicker({
     setLoading(true);
     let stale = false;
     const timer = setTimeout(async () => {
-      let q = supabase.from('projects').select('id, name, code, customer_name, address').eq('status', 'active').order('name').limit(30);
+      let q = supabase.from('projects').select('id, name, code, customer_name, address, latitude, longitude').eq('status', 'active').order('name').limit(30);
       const filter = ilikeAny(['name', 'code', 'customer_name'], query);
       if (filter) q = q.or(filter);
       const { data } = await q;

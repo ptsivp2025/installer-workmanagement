@@ -59,9 +59,9 @@ export default function SalesReviewPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold text-slate-900">{t('salesReview.title')}</h1>
-        <p className="text-sm text-slate-500 mt-0.5">{t('salesReview.subtitle')}</p>
+      <div className="mb-4 gap-3 flex-wrap">
+        <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{t('salesReview.title')}</h1>
+        <p className="text-[12.5px] text-slate-500 mt-0.5">{t('salesReview.subtitle')}</p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -76,7 +76,7 @@ export default function SalesReviewPage() {
         </button>
       </div>
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (
           <LoadingState />
         ) : error ? (

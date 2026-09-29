@@ -124,11 +124,11 @@ export default function ActivityDetailPage() {
     <div className="max-w-3xl mx-auto">
       <BackButton fallbackHref="/request-schedule" />
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="text-xs font-semibold text-brand-700 uppercase tracking-wide">{activity.activity_categories?.name}</span>
-            <h1 className="text-lg font-semibold text-slate-900">{activity.title}</h1>
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">{activity.title}</h1>
             <p className="text-xs text-slate-400 font-mono mt-0.5">{activity.request_number}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">

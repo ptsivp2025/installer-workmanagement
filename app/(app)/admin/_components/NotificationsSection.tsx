@@ -63,7 +63,7 @@ export function NotificationsSection() {
     <div>
       {loading ? <LoadingState /> : error && !settings ? <ErrorState message={error} onRetry={load} /> : (
         <div className="space-y-6 max-w-2xl">
-          <form onSubmit={handleSaveToken} className="bg-white rounded-card border border-slate-200 shadow-card p-5 space-y-4">
+          <form onSubmit={handleSaveToken} className="bg-white rounded-card border border-slate-200 shadow-bento p-5 space-y-4">
             <div>
               <h2 className="font-semibold text-slate-900">{t('adminNotifications.botToken')}</h2>
               <p className="text-sm text-slate-500 mt-0.5">{t('adminNotifications.botTokenSubtitle')}</p>
@@ -95,7 +95,7 @@ export function NotificationsSection() {
               </button>
             </div>
 
-            <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+            <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
               {groups.length === 0 ? (
                 <p className="text-sm text-slate-400 p-5">{t('adminNotifications.noGroupsYet')}</p>
               ) : (

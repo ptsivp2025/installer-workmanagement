@@ -18,6 +18,8 @@ const PUBLIC_EXACT = [
   '/api/auth/forgot-password',
   '/api/public/branding',
   '/api/public/sales-divisions',
+  // Android updater: version number + notes only; the APK itself needs a session.
+  '/api/app/version',
 ];
 
 const CRON_PREFIX = '/api/cron/';

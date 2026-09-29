@@ -37,7 +37,7 @@ export function IntegrationsSection({ onOpenNotifications }: { onOpenNotificatio
 
       {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (
         <div className="max-w-lg space-y-3">
-          <button onClick={onOpenNotifications} className="w-full text-left block bg-white rounded-card border border-slate-200 shadow-card p-5 hover:shadow-modal transition">
+          <button onClick={onOpenNotifications} className="w-full text-left block bg-white rounded-card border border-slate-200 shadow-bento p-5 hover:shadow-modal transition">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 <Send className="h-5 w-5 text-brand-600 mt-0.5" />

@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useAuth, useLanguage } from '@/app/providers';
+import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState } from '@/components/shared/States';
+import { Modal, ModalBanner, BannerBadge, BannerTile } from '@/components/shared/Modal';
 import { AdminSidebar } from './AdminSidebar';
 import { CategoriesSection } from './CategoriesSection';
 import { UsersSection } from './UsersSection';
@@ -12,62 +14,89 @@ import { SettingsSection } from './SettingsSection';
 import { NotificationsSection } from './NotificationsSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { AuditLogSection } from './AuditLogSection';
+import { AndroidAppSection } from './AndroidAppSection';
 import type { AdminTab } from './types';
+import type { DictKey } from '@/lib/i18n';
 
-// A popup, not a page: the main app sidebar/content stay mounted (dimmed)
-// behind it, and switching sections inside never navigates a route — only
-// this one component tree is ever on screen for the whole Admin Panel.
+const TAB_LABEL: Record<AdminTab, DictKey> = {
+  categories: 'admin.tab.categories',
+  users: 'admin.tab.users',
+  'sales-divisions': 'admin.tab.salesDivisions',
+  settings: 'admin.tab.settings',
+  notifications: 'admin.tab.notifications',
+  integrations: 'admin.tab.integrations',
+  'audit-log': 'admin.tab.auditLog',
+  'android-app': 'admin.tab.androidApp',
+};
+
+/**
+ * The Admin Panel is a popup, not a page: the app stays mounted (dimmed)
+ * behind it and switching sections never changes the route. Same banner and
+ * layout as the Profile popup and the Sales Management Platform.
+ */
 export function AdminPanelModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { user, loading: authLoading } = useAuth();
   const { t } = useLanguage();
   const [tab, setTab] = useState<AdminTab>('categories');
+  const [counts, setCounts] = useState({ activeUsers: 0, waiting: 0 });
 
+  const loadCounts = useCallback(async () => {
+    const head = (table: string) => supabase.from(table).select('*', { count: 'exact', head: true });
+    const [active, pending, resets] = await Promise.all([
+      head('users').eq('active', true),
+      head('users').eq('approval_status', 'pending'),
+      head('password_reset_requests').eq('status', 'pending'),
+    ]);
+    setCounts({ activeUsers: active.count ?? 0, waiting: (pending.count ?? 0) + (resets.count ?? 0) });
+  }, []);
+
+  useEffect(() => { if (open && user?.role === 'admin') loadCounts(); }, [open, user?.role, loadCounts, tab]);
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+    const onChange = () => { loadCounts(); };
+    window.addEventListener('iwm:admin-changed', onChange);
+    return () => window.removeEventListener('iwm:admin-changed', onChange);
+  }, [open, loadCounts]);
 
   const selectTab = useCallback((next: AdminTab) => setTab(next), []);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-0 sm:p-6">
-      <div className="w-full h-full sm:h-[85vh] sm:max-w-5xl bg-white sm:rounded-card shadow-modal flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <span className="h-8 w-8 rounded-lg bg-slate-800 text-white flex items-center justify-center shrink-0"><ShieldCheck className="h-4 w-4" /></span>
-            <div>
-              <h2 className="font-semibold text-slate-900 leading-tight">{t('admin.panel')}</h2>
-              <p className="text-xs text-slate-400 leading-tight">{t('admin.modalSubtitle')}</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 shrink-0"><X className="h-5 w-5" /></button>
-        </div>
+    <Modal open={open} onClose={onClose} title={t('admin.panel')} size="full" bare>
+      <ModalBanner
+        onClose={onClose}
+        eyebrow={t('admin.modalSubtitle')}
+        title={t('admin.panel')}
+        aside={user?.role === 'admin' ? (
+          <>
+            <BannerTile value={counts.activeUsers} label={t('admin.tileActiveUsers')} />
+            <BannerTile value={counts.waiting} label={t('admin.tileWaiting')} amber={counts.waiting > 0} />
+          </>
+        ) : undefined}
+      >
+        <BannerBadge><ShieldCheck className="h-3 w-3" /> {t(TAB_LABEL[tab])}</BannerBadge>
+      </ModalBanner>
 
-        {authLoading ? (
-          <div className="flex-1 flex items-center justify-center"><LoadingState /></div>
-        ) : !user || user.role !== 'admin' ? (
-          <div className="flex-1 flex items-center justify-center p-6"><ErrorState message={t('admin.onlyAdmins')} /></div>
-        ) : (
-          <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
-            <div className="shrink-0 border-b sm:border-b-0 sm:border-r border-slate-100 p-3 overflow-y-auto sm:w-56">
-              <AdminSidebar active={tab} onSelect={selectTab} />
-            </div>
-            <div className="flex-1 min-w-0 overflow-y-auto p-5">
-              {tab === 'categories' && <CategoriesSection />}
-              {tab === 'users' && <UsersSection />}
-              {tab === 'sales-divisions' && <SalesDivisionsSection />}
-              {tab === 'settings' && <SettingsSection />}
-              {tab === 'notifications' && <NotificationsSection />}
-              {tab === 'audit-log' && <AuditLogSection />}
-              {tab === 'integrations' && <IntegrationsSection onOpenNotifications={() => selectTab('notifications')} />}
-            </div>
+      {authLoading ? (
+        <div className="flex-1 flex items-center justify-center"><LoadingState /></div>
+      ) : !user || user.role !== 'admin' ? (
+        <div className="flex-1 flex items-center justify-center p-6"><ErrorState message={t('admin.onlyAdmins')} /></div>
+      ) : (
+        <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
+          <aside className="shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200 bg-white sm:w-56 sm:overflow-y-auto overflow-x-hidden">
+            <AdminSidebar active={tab} onSelect={selectTab} badges={{ users: counts.waiting }} />
+          </aside>
+          <div className="flex-1 min-w-0 min-h-0 overflow-y-auto bg-slate-50 p-4 sm:p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            {tab === 'categories' && <CategoriesSection />}
+            {tab === 'users' && <UsersSection />}
+            {tab === 'sales-divisions' && <SalesDivisionsSection />}
+            {tab === 'settings' && <SettingsSection />}
+            {tab === 'notifications' && <NotificationsSection />}
+            {tab === 'audit-log' && <AuditLogSection />}
+            {tab === 'android-app' && <AndroidAppSection />}
+            {tab === 'integrations' && <IntegrationsSection onOpenNotifications={() => selectTab('notifications')} />}
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </Modal>
   );
 }

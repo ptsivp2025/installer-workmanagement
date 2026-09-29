@@ -90,7 +90,7 @@ export function SettingsSection() {
               will see, not a stylized mockup. */}
           <div>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">{t('adminSettings.preview')}</p>
-            <div className="bg-white rounded-card border border-slate-200 shadow-card p-4">
+            <div className="bg-white rounded-card border border-slate-200 shadow-bento p-4">
               <div className="flex items-center gap-2.5">
                 {form.logo_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -108,7 +108,7 @@ export function SettingsSection() {
             </div>
           </div>
 
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 space-y-4">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminSettings.platformName')}</label>
               <input value={form.platform_name} onChange={e => setForm(f => ({ ...f, platform_name: e.target.value }))} className={inputCls} />
@@ -137,7 +137,7 @@ export function SettingsSection() {
             </div>
           </div>
 
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 space-y-4">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 space-y-4">
             <p className="text-sm font-medium text-slate-700">{t('adminSettings.themeSection')}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -188,7 +188,7 @@ export function SettingsSection() {
             </div>
           </div>
 
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
             <label className="flex items-center justify-between cursor-pointer">
               <span className="text-sm text-slate-700">{t('adminSettings.showCategoryBreakdown')}</span>
               <button
@@ -203,7 +203,7 @@ export function SettingsSection() {
 
           {/* Off by default: turning it on before every installer has the
               Android app would stop them completing GPS-verified jobs. */}
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
             <label className="flex items-center justify-between gap-4 cursor-pointer">
               <span>
                 <span className="block text-sm text-slate-700">{t('adminSettings.requireNativeApp')}</span>

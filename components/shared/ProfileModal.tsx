@@ -22,7 +22,7 @@ const OPEN = ['scheduled', 'in_progress'];
 
 function greetingKey(): DictKey {
   const h = new Date().getHours();
-  return h < 11 ? 'greeting.morning' : h < 15 ? 'greeting.afternoon' : h < 18 ? 'greeting.evening' : 'greeting.night';
+  return h < 4 ? 'greeting.night' : h < 11 ? 'greeting.morning' : h < 15 ? 'greeting.afternoon' : h < 18 ? 'greeting.evening' : 'greeting.night';
 }
 
 /**
@@ -251,7 +251,7 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
                   </div>
                 ) : (
                   <>
-                    <a href="/app/installer-wm.apk" download
+                    <a href="/api/app/download"
                       className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-control bg-gradient-to-r from-brand-700 to-brand-500 text-white text-sm font-bold px-4 py-3 shadow-bento hover:from-brand-800 hover:to-brand-600">
                       <Download className="h-4 w-4" /> {t('profile.appDownload')}
                     </a>

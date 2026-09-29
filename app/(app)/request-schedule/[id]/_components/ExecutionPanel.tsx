@@ -151,7 +151,7 @@ export function ExecutionPanel({
 
   if (activity.status === 'completed') {
     return (
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 space-y-3">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 space-y-3">
         <div className="flex items-center gap-3">
           <CheckCircle2 className="h-6 w-6 text-emerald-600 shrink-0" />
           <div>
@@ -175,7 +175,7 @@ export function ExecutionPanel({
   }
 
   return (
-    <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+    <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
       <h3 className="font-semibold text-slate-900 flex items-center gap-2 mb-3"><Navigation className="h-4 w-4" /> {t('execution.title')}</h3>
 
       {hasTarget && (

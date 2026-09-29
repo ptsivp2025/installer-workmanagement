@@ -71,7 +71,7 @@ export function ActivityFormModal({
     const pid = activity?.project_id ?? defaultProjectId;
     setSelectedProject(null);
     if (pid) {
-      supabase.from('projects').select('id, name, code, customer_name, address').eq('id', pid).maybeSingle()
+      supabase.from('projects').select('id, name, code, customer_name, address, latitude, longitude').eq('id', pid).maybeSingle()
         .then((res: { data: ProjectOption | null }) => setSelectedProject(res.data));
     }
     setSelectedPersonnel([]);
@@ -234,7 +234,10 @@ export function ActivityFormModal({
             <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500">{t('activity.location')}</p>
-              <p className="text-sm text-slate-700 truncate">{selectedProject?.address || t('activity.projectLocationNotSet')}</p>
+              <p className="text-sm text-slate-700 truncate">{selectedProject?.address
+                || (selectedProject?.latitude != null && selectedProject?.longitude != null
+                  ? `GPS ${Number(selectedProject.latitude).toFixed(6)}, ${Number(selectedProject.longitude).toFixed(6)}`
+                  : t('activity.projectLocationNotSet'))}</p>
               <p className="text-xs text-slate-400 mt-0.5">{t('activity.locationFromProjectHint')}</p>
             </div>
           </div>

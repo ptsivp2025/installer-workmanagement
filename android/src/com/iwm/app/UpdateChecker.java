@@ -25,10 +25,11 @@ import java.net.URL;
 /**
  * In-app update for a sideloaded APK (no Play Store to do it for us).
  *
- * The web app publishes public/app/version.json and public/app/installer-wm.apk
- * (android/build.sh writes both). On every launch, and from the "Cek Update
+ * Admin Panel → Aplikasi Android publishes the APK to private storage and its
+ * version to /api/app/version. On every launch, and from the "Cek Update
  * Aplikasi" menu item, this compares the published versionCode with the
- * installed one. If newer, it offers the update, downloads it with
+ * installed one. The download (/api/app/download) needs the signed-in
+ * session, so the WebView's login cookie is sent along with it. If newer, it offers the update, downloads it with
  * DownloadManager (with progress) and hands it to Android's installer.
  * Android asks the user once to allow installs from this app.
  */
@@ -48,7 +49,7 @@ class UpdateChecker {
         new Thread(new Runnable() {
             @Override public void run() {
                 try {
-                    final JSONObject info = new JSONObject(get(baseUrl + "/app/version.json?t=" + System.currentTimeMillis()));
+                    final JSONObject info = new JSONObject(get(baseUrl + "/api/app/version?t=" + System.currentTimeMillis()));
                     final int latest = info.getInt("versionCode");
                     final int installed = installedVersionCode();
                     handler.post(new Runnable() {
@@ -73,7 +74,7 @@ class UpdateChecker {
     private void offer(final String baseUrl, JSONObject info) {
         final String name = info.optString("versionName", "?");
         String notes = info.optString("notes", "");
-        String apk = info.optString("apk", "/app/installer-wm.apk");
+        String apk = info.optString("apk", "/api/app/download");
         final String apkUrl = (apk.startsWith("http") ? apk : baseUrl + apk) + "?v=" + info.optInt("versionCode");
         boolean required = info.optBoolean("required", false);
 
@@ -96,6 +97,9 @@ class UpdateChecker {
         if (target.exists()) target.delete(); // otherwise DownloadManager saves "-1.apk" beside it
 
         DownloadManager.Request r = new DownloadManager.Request(Uri.parse(apkUrl));
+        // The APK is only handed to signed-in users (it carries the GPS key).
+        String cookie = android.webkit.CookieManager.getInstance().getCookie(apkUrl);
+        if (cookie != null) r.addRequestHeader("Cookie", cookie);
         r.setTitle("Installer WM " + name);
         r.setMimeType(APK_MIME);
         r.setDestinationInExternalFilesDir(activity, Environment.DIRECTORY_DOWNLOADS, fileName);

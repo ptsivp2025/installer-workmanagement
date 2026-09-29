@@ -88,11 +88,11 @@ export default function ProjectDetailPage() {
     <div>
       <BackButton fallbackHref="/projects" />
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-6">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-6">
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-slate-900">{project.name}</h1>
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{project.name}</h1>
               <span className="text-xs font-mono text-slate-400">{project.code}</span>
             </div>
             <p className="text-sm text-slate-500 mt-1 flex items-center gap-3 flex-wrap">
@@ -134,7 +134,7 @@ export default function ProjectDetailPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento">
         {activities.length === 0 ? (
           <p className="text-sm text-slate-400 py-10 text-center">{t('projects.noActivitiesForProject')}</p>
         ) : (

@@ -122,10 +122,10 @@ function RequestScheduleContent() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">{t('nav.requestSchedule')}</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{t('activity.subtitleList')}</p>
+          <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{t('nav.requestSchedule')}</h1>
+          <p className="text-[12.5px] text-slate-500 mt-0.5">{t('activity.subtitleList')}</p>
         </div>
         {canExport && (
           <button onClick={handleExport} disabled={exporting} title={t('export.hint')} className="inline-flex items-center gap-1.5 rounded-control border border-slate-300 bg-white text-slate-700 text-sm font-medium px-3.5 py-2 hover:bg-slate-50 disabled:opacity-60 ml-auto mr-2">
@@ -174,7 +174,7 @@ function RequestScheduleContent() {
         </button>
       </div>
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (
           <SkeletonList rows={6} />
         ) : error ? (

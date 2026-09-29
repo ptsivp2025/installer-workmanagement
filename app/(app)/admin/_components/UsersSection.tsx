@@ -43,6 +43,8 @@ export function UsersSection() {
       .select('id, user_id, username, contact, created_at').eq('status', 'pending').order('created_at');
     setResetRequests((reqs as ResetRequest[]) ?? []);
     setLoading(false);
+    // The Admin Panel banner counts active users / waiting requests.
+    window.dispatchEvent(new Event('iwm:admin-changed'));
   }, []);
 
   async function closeResetRequest(id: string, status: 'resolved' | 'dismissed') {
@@ -190,7 +192,7 @@ export function UsersSection() {
         <div className="mb-4"><SearchInput value={search} onChange={setSearch} placeholder={t('adminUsers.searchPlaceholder')} /></div>
       )}
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (() => {
           const filtered = users.filter(u =>
             u.full_name.toLowerCase().includes(search.trim().toLowerCase()) ||

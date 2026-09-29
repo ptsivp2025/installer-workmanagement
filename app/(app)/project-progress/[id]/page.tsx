@@ -83,11 +83,11 @@ export default function ProjectProgressDetailPage() {
     <div>
       <BackButton fallbackHref="/project-progress" />
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-slate-900">{project.name}</h1>
+              <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight">{project.name}</h1>
               <span className="text-xs font-mono text-slate-400">{project.code}</span>
             </div>
             <p className="text-sm text-slate-500 mt-0.5">{project.customer_name}</p>
@@ -113,7 +113,7 @@ export default function ProjectProgressDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white rounded-card border border-slate-200 shadow-card p-5">
+        <div className="lg:col-span-2 bg-white rounded-card border border-slate-200 shadow-bento p-5">
           <h2 className="font-semibold text-slate-900 mb-3">{t('projectProgress.activityTimeline')}</h2>
           <ol className="relative border-l border-slate-200 ml-3">
             {activities.map(a => (
@@ -138,14 +138,14 @@ export default function ProjectProgressDetailPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
             <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2"><Users className="h-4 w-4" /> {t('projectProgress.personnelInvolved')}</h3>
             {uniquePersonnel.length === 0 ? <p className="text-sm text-slate-400">{t('projectProgress.noneYet')}</p> : (
               <ul className="text-sm text-slate-600 space-y-1">{uniquePersonnel.slice(0, 10).map(p => <li key={p.id}>{p.name}</li>)}</ul>
             )}
           </div>
 
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
             <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2"><Navigation className="h-4 w-4" /> {t('projectProgress.latestGpsExecution')}</h3>
             {latestGpsActivity ? (
               <div className="text-sm text-slate-600">
@@ -159,7 +159,7 @@ export default function ProjectProgressDetailPage() {
             ) : <p className="text-sm text-slate-400">{t('projectProgress.noGpsCaptures')}</p>}
           </div>
 
-          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+          <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
             <h3 className="font-semibold text-slate-900 mb-2 flex items-center gap-2"><Camera className="h-4 w-4" /> {t('projectProgress.recentEvidence')}</h3>
             {thumbsError && (
               <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-control px-3 py-1.5 mb-2">
@@ -183,7 +183,7 @@ export default function ProjectProgressDetailPage() {
           </div>
 
           {latestActivity && (
-            <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+            <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
               <h3 className="font-semibold text-slate-900 mb-2">{t('projectProgress.latestActivity')}</h3>
               <p className="text-sm text-slate-600">{latestActivity.title}</p>
               <p className="text-xs text-slate-400 mt-0.5">{formatDateTime(latestActivity.updated_at)}</p>
@@ -197,7 +197,7 @@ export default function ProjectProgressDetailPage() {
 
 function StatTile({ icon: Icon, label, value, accent }: { icon: React.ElementType; label: string; value: number; accent?: string }) {
   return (
-    <div className="bg-white rounded-card border border-slate-200 shadow-card p-4">
+    <div className="bg-white rounded-card border border-slate-200 shadow-bento p-4">
       <Icon className={`h-4 w-4 mb-2 ${accent ?? 'text-slate-400'}`} />
       <p className={`text-2xl font-semibold ${accent ?? 'text-slate-900'}`}>{value}</p>
       <p className="text-xs text-slate-500">{label}</p>

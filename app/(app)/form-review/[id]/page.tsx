@@ -127,12 +127,12 @@ export default function FormReviewDetailPage() {
     <div className="max-w-2xl mx-auto">
       <BackButton fallbackHref="/form-review" />
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <span className="text-xs font-semibold text-brand-700 uppercase">{activity.activity_categories?.name}</span>
-            <h1 className="text-lg font-semibold text-slate-900">{activity.title}</h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight leading-tight">{activity.title}</h1>
+            <p className="text-[12.5px] text-slate-500 mt-0.5">
               <Link href={`/projects/${activity.project_id}`} className="text-brand-600 hover:underline">{activity.projects?.name}</Link>
               {' · '}{formatDate(activity.scheduled_date)}
             </p>
@@ -222,7 +222,7 @@ export default function FormReviewDetailPage() {
       </div>
 
       {review.status !== 'pending' && (
-        <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4 text-sm">
+        <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5 mb-4 text-sm">
           <p className="text-slate-500">{t('formReview.decision')}: <StatusBadge status={review.status} /></p>
           {review.notes && <p className="text-slate-700 mt-2">{review.notes}</p>}
           <p className="text-slate-400 mt-2">{formatDateTime(review.reviewed_at)}</p>
@@ -236,7 +236,7 @@ export default function FormReviewDetailPage() {
       )}
 
       {canDecide && (
-        <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+        <div className="bg-white rounded-card border border-slate-200 shadow-bento p-5">
           <label className="block text-sm font-medium text-slate-700 mb-1.5">{t('formReview.reviewNotes')}</label>
           <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full rounded-control border border-slate-300 px-3 py-2 text-sm mb-4" placeholder={t('formReview.notesPlaceholder')} />
           {decisionError && <p className="text-sm text-red-600 mb-3">{decisionError}</p>}

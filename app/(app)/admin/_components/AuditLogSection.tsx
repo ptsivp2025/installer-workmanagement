@@ -101,7 +101,7 @@ export function AuditLogSection() {
         </select>
       </div>
 
-      <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
+      <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? <SkeletonList rows={8} /> : error ? <ErrorState message={error} onRetry={load} /> : rows.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-slate-400">{t('audit.empty')}</p>
         ) : (

@@ -84,7 +84,7 @@ export function PersonnelPanel({
   }
 
   return (
-    <div id="personnel" className="bg-white rounded-card border border-slate-200 shadow-card p-5 scroll-mt-32">
+    <div id="personnel" className="bg-white rounded-card border border-slate-200 shadow-bento p-5 scroll-mt-32">
       <div className="flex items-center justify-between mb-3">
         <h3 className="font-semibold text-slate-900 flex items-center gap-2"><Users className="h-4 w-4" /> {t('personnel.title')}</h3>
         <span className="text-sm font-medium text-slate-500">{personnel.length} {personnel.length === 1 ? t('personnel.person') : t('personnel.peopleCount')}</span>
