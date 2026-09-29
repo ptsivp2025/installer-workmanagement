@@ -3,9 +3,42 @@
 @tailwind utilities;
 
 html, body {
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: #f1f5f9; /* slate-100: white cards stand off it, as on the Sales platform */
+  color: #1e293b;
 }
+
+body {
+  /* One element wider than the screen must not make the whole app scroll
+     sideways. `clip`, not `hidden`: hidden creates a scroll container and
+     kills every position: sticky inside (header, sidebar). */
+  overflow-x: clip;
+  overflow-wrap: break-word;
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+.tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Scrollable pill rows (header shortcuts) without a visible bar. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Page content entering on navigation. `backwards` fill: no transform is
+   left behind afterwards, so fixed modals inside stay fixed to the screen. */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-page { animation: pageIn .32s cubic-bezier(.2, .7, .2, 1) backwards; }
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(16px) scale(.98); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-rise { animation: riseIn .22s cubic-bezier(.22, 1, .36, 1) both; }
 
 * {
   -webkit-tap-highlight-color: transparent;

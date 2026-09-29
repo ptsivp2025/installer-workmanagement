@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { SessionUserProfile } from '@/lib/auth';
+import { localDateKey } from '@/lib/utils';
 
 export interface NavBadgeCounts {
   /** Pending account registrations — admin only. */
@@ -13,9 +14,14 @@ export interface NavBadgeCounts {
   formReview: number;
   /** Completed activities waiting on the Sales Division's own rating. */
   salesReview: number;
+  /** Open activities scheduled today — an installer's own, everyone else's all. */
+  today: number;
+  /** Open activities whose date has passed — staff only (they reschedule). */
+  overdue: number;
 }
 
-const EMPTY: NavBadgeCounts = { registrations: 0, projectRequests: 0, formReview: 0, salesReview: 0 };
+const EMPTY: NavBadgeCounts = { registrations: 0, projectRequests: 0, formReview: 0, salesReview: 0, today: 0, overdue: 0 };
+const OPEN = ['scheduled', 'in_progress'];
 const POLL_MS = 30_000;
 
 async function headCount(table: string, column: string, value: string): Promise<number> {
@@ -56,6 +62,20 @@ export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
       }
       if (['admin', 'supervisor', 'reviewer'].includes(user!.role)) {
         tasks.push(headCount('form_reviews', 'status', 'pending').then(n => { next.formReview = n; }));
+      }
+      if (user!.role !== 'sales') {
+        const today = localDateKey();
+        let q = user!.role === 'installer'
+          ? supabase.from('activities').select('id, activity_personnel!inner(user_id)', { count: 'exact', head: true })
+              .eq('activity_personnel.user_id', user!.id)
+          : supabase.from('activities').select('*', { count: 'exact', head: true });
+        q = q.eq('scheduled_date', today).in('status', OPEN);
+        tasks.push(Promise.resolve(q).then(({ count }) => { next.today = count ?? 0; }));
+      }
+      if (user!.role === 'admin' || user!.role === 'supervisor') {
+        tasks.push(Promise.resolve(
+          supabase.from('activities').select('*', { count: 'exact', head: true }).lt('scheduled_date', localDateKey()).in('status', OPEN),
+        ).then(({ count }) => { next.overdue = count ?? 0; }));
       }
       if (user!.role === 'sales') {
         // RLS already scopes sales_reviews to this account's own division.
