@@ -252,6 +252,71 @@ SELECT t_as('00000000-0000-0000-0000-000000000001');
 SELECT t_check('an admin can read the Telegram bot settings', (SELECT count(*) = 1 FROM notification_settings));
 RESET ROLE;
 
+-- ── 029: Demo → Purchase timeline, rooms, one sales account per project ────
+-- Two sales accounts in the SAME division: the whole point is that they
+-- still can't see each other's projects.
+INSERT INTO sales_divisions (id, name, code, active)
+  VALUES ('00000000-0000-0000-0000-0000000000d9', 'Divisi Uji', 'UJI', true);
+INSERT INTO users (id, username, full_name, role, active, approval_status, sales_division_id) VALUES
+  ('00000000-0000-0000-0000-000000000091', 'sales_a', 'Sales A', 'sales', true, 'approved', '00000000-0000-0000-0000-0000000000d9'),
+  ('00000000-0000-0000-0000-000000000092', 'sales_b', 'Sales B', 'sales', true, 'approved', '00000000-0000-0000-0000-0000000000d9');
+INSERT INTO projects (id, code, name, status, latitude, longitude, sales_division_id, sales_user_id) VALUES
+  ('00000000-0000-0000-0000-0000000000a9', 'PA', 'Proyek Sales A', 'active', -6.2, 106.8, '00000000-0000-0000-0000-0000000000d9', '00000000-0000-0000-0000-000000000091'),
+  ('00000000-0000-0000-0000-0000000000b9', 'PB', 'Proyek Sales B', 'active', -6.2, 106.8, '00000000-0000-0000-0000-0000000000d9', '00000000-0000-0000-0000-000000000092');
+
+-- Demo and purchase in the SAME room, with a DIFFERENT product: the case the
+-- old product-only matching missed entirely.
+UPDATE activity_categories SET counts_as_demo = (code = 'instalasi_demo'), counts_as_installation = (code = 'instalasi_beli');
+INSERT INTO activities (id, request_number, project_id, category_id, title, scheduled_date, status, completed_at, room_name, product_brand, product_type) VALUES
+  ('00000000-0000-0000-0000-0000000000e1', 'R-DEMO', '00000000-0000-0000-0000-0000000000a9',
+   (SELECT id FROM activity_categories WHERE code = 'instalasi_demo'), 'Demo Ruang Rapat', current_date - 40, 'completed', now() - interval '40 days', 'Ruang Rapat 1', 'Maxhub', 'Videowall'),
+  ('00000000-0000-0000-0000-0000000000e2', 'R-BELI', '00000000-0000-0000-0000-0000000000a9',
+   (SELECT id FROM activity_categories WHERE code = 'instalasi_beli'), 'Beli Ruang Rapat', current_date, 'scheduled', NULL, 'ruang rapat  1', 'Promethean', 'Videowall');
+
+SELECT t_check('the room key ignores case and extra spaces',
+  (SELECT count(DISTINCT room_key) = 1 FROM activities WHERE id IN ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000e2')));
+SELECT t_check('a purchase is suggested its demo from the SAME ROOM even when the product changed',
+  (SELECT match_reason = 'room' AND rank = 1 FROM activity_demo_suggestions
+   WHERE purchase_activity_id = '00000000-0000-0000-0000-0000000000e2' AND demo_activity_id = '00000000-0000-0000-0000-0000000000e1'));
+SELECT t_check('the elapsed days are recorded, with no time limit applied',
+  (SELECT days_since_demo >= 39 FROM activity_demo_suggestions WHERE purchase_activity_id = '00000000-0000-0000-0000-0000000000e2'));
+
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1'); -- installer, not staff
+SELECT t_raises('only staff may confirm a demo link',
+  $q$ SELECT iwm_link_demo('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e1', 'room') $q$);
+SELECT t_as('00000000-0000-0000-0000-000000000001'); -- seeded admin
+SELECT t_check('staff confirms the link',
+  (iwm_link_demo('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e1', 'room') ->> 'linked')::boolean);
+SELECT t_check('the confirmed link shows up on the timeline with its reason',
+  (SELECT demo_request_number = 'R-DEMO' AND match_reason = 'room' AND billing_status = 'not_billed'
+   FROM activity_demo_timeline WHERE activity_id = '00000000-0000-0000-0000-0000000000e2'));
+SELECT t_check('a confirmed purchase is no longer suggested',
+  (SELECT count(*) = 0 FROM activity_demo_suggestions WHERE purchase_activity_id = '00000000-0000-0000-0000-0000000000e2'));
+
+-- The isolation that matters: same division, different owner.
+SELECT t_as('00000000-0000-0000-0000-000000000091');
+SELECT t_check('a sales account sees its own project', (SELECT count(*) = 1 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000a9'));
+SELECT t_check('and NOT another sales account''s project in the same division',
+  (SELECT count(*) = 0 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000b9'));
+SELECT t_check('a sales account sees only its own projects in total', (SELECT count(*) = 1 FROM projects));
+SELECT t_check('a sales account sees its own project''s activities', (SELECT count(*) = 2 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));
+SELECT t_as('00000000-0000-0000-0000-000000000092');
+SELECT t_check('the other sales account sees neither those activities',
+  (SELECT count(*) = 0 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));
+SELECT t_raises('nor may it confirm a demo link',
+  $q$ SELECT iwm_link_demo('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e1', 'room') $q$);
+RESET ROLE;
+INSERT INTO projects (id, code, name, status, sales_division_id, sales_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000c9', 'PC', 'Proyek Belum Punya Sales', 'active', '00000000-0000-0000-0000-0000000000d9', NULL);
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000091');
+SELECT t_check('a project with no sales account assigned is invisible to sales',
+  (SELECT count(*) = 0 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c9'));
+RESET ROLE;
+SELECT t_check('but staff still see it, so an admin can assign one',
+  (SELECT count(*) = 1 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c9'));
+
 -- ── result ─────────────────────────────────────────────────────────────────
 DO $$
 BEGIN

@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package } from 'lucide-react';
+import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package, Repeat2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
-import type { Project, Activity, ActivityPersonnel, ActivityDiscountEligibility } from '@/lib/types';
+import type { Project, Activity, ActivityPersonnel, ActivityDiscountEligibility, DemoTimelineRow } from '@/lib/types';
 import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
@@ -22,6 +22,7 @@ export default function ProjectDetailPage() {
   const [evidenceCounts, setEvidenceCounts] = useState<Record<string, number>>({});
   const [primaryByActivity, setPrimaryByActivity] = useState<Record<string, ActivityPersonnel>>({});
   const [discountByActivity, setDiscountByActivity] = useState<Record<string, ActivityDiscountEligibility>>({});
+  const [demoTimeline, setDemoTimeline] = useState<DemoTimelineRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -66,6 +67,16 @@ export default function ProjectDetailPage() {
         setDiscountByActivity(discMap);
       } catch {
         setDiscountByActivity({});
+      }
+
+      // Same rule: migration 029 may not have been applied yet, and that
+      // must hide this panel, not break the page.
+      try {
+        const { data: tl } = await supabase.from('activity_demo_timeline').select('*')
+          .eq('project_id', id).order('completed_at', { nullsFirst: false }).order('scheduled_date');
+        setDemoTimeline((tl as DemoTimelineRow[]) ?? []);
+      } catch {
+        setDemoTimeline([]);
       }
     } catch (e) {
       setError(errorMessage(e, t('projects.failedToLoad')));
@@ -124,6 +135,44 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* The chain this platform exists to record: which purchase came out of
+          which demo, how long after, and whether it has been claimed (029). */}
+      {demoTimeline.length > 0 && (
+        <div className="bg-white rounded-card border border-slate-200 shadow-bento mb-4 overflow-hidden">
+          <header className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100">
+            <Repeat2 className="h-4 w-4 text-slate-500" />
+            <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-[0.14em] flex-1">{t('timeline.title')}</h2>
+            <Link href="/demo-recap" className="text-[11px] font-bold text-brand-700 hover:underline">{t('dashboard.seeAll')}</Link>
+          </header>
+          <ul className="divide-y divide-slate-100">
+            {demoTimeline.map(r => (
+              <li key={r.activity_id} className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${r.counts_as_demo ? 'bg-blue-500' : 'bg-emerald-600'}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-bold text-slate-800 truncate">
+                    {r.title}
+                    {r.room_name && <span className="ml-2 text-[11px] font-semibold text-slate-500">· {r.room_name}</span>}
+                  </p>
+                  <p className="text-[11.5px] text-slate-500 truncate">
+                    {r.category_name} · {[r.product_brand, r.product_type, r.product_model].filter(Boolean).join(' ') || '—'}
+                  </p>
+                </div>
+                <span className="text-[11px] text-slate-400 tabular-nums shrink-0">
+                  {r.completed_at ? formatDate(r.completed_at) : formatDate(r.scheduled_date)}
+                </span>
+                {r.counts_as_installation && (
+                  <span className={`w-full sm:w-auto text-[11px] font-semibold shrink-0 ${r.demo_activity_id ? 'text-emerald-700' : 'text-slate-400'}`}>
+                    {r.demo_activity_id
+                      ? t('timeline.linkedTo', { no: r.demo_request_number ?? '', days: r.days_since_demo ?? 0 })
+                      : t('timeline.notLinked')}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold text-slate-900">{t('projectProgress.activityTimeline')}</h2>

@@ -82,7 +82,7 @@ function StaffDashboard() {
   const [trend, setTrend] = useState<DayCount[]>([]);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [pendingSalesReviews, setPendingSalesReviews] = useState(0);
-  const [demoPurchase, setDemoPurchase] = useState({ demoCount: 0, purchaseCount: 0, purchaseAfterDemo: 0, demoOnlyProjects: 0 });
+  const [demoPurchase, setDemoPurchase] = useState({ linked: 0, notBilled: 0, billed: 0, accepted: 0, needsConfirm: 0 });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -175,28 +175,28 @@ function StaffDashboard() {
       setAvgRating(rated.length ? rated.reduce((sum, r) => sum + r.rating, 0) / rated.length : null);
       setPendingSalesReviews(pendingSales.count ?? 0);
 
-      // Best-effort: Demo -> Purchase is a reporting overlay, never something
-      // that should take the whole dashboard down if a migration is pending.
+      // Demo → Purchase: counted from the CONFIRMED links (029), not from a
+      // guess — this is the number the vendor bills the installer against.
+      // Best-effort: a pending migration hides the card, it never takes the
+      // dashboard down.
       try {
-        const demoCatIds = categories.filter(c => c.counts_as_demo).map(c => c.id);
-        const installCatIds = categories.filter(c => c.counts_as_installation).map(c => c.id);
-        if (demoCatIds.length > 0 || installCatIds.length > 0) {
-          const [demoActs, purchaseActs] = await Promise.all([
-            fetchCompletedByCategory(demoCatIds),
-            fetchCompletedByCategory(installCatIds),
-          ]);
-          const elig = await fetchAllRows<{ activity_id: string }>((from, to) =>
-            supabase.from('activity_discount_eligibility').select('activity_id').order('activity_id').range(from, to));
-          const purchaseIds = new Set(purchaseActs.map(a => a.id));
-          const matchedIds = new Set(elig.map(e => e.activity_id));
-          const purchaseAfterDemo = [...purchaseIds].filter(id => matchedIds.has(id)).length;
-          const demoProjectIds = new Set(demoActs.map(a => a.project_id));
-          const purchaseProjectIds = new Set(purchaseActs.map(a => a.project_id));
-          const demoOnlyProjects = [...demoProjectIds].filter(pid => !purchaseProjectIds.has(pid)).length;
-          setDemoPurchase({ demoCount: demoActs.length, purchaseCount: purchaseIds.size, purchaseAfterDemo, demoOnlyProjects });
-        }
+        const head = (table: string) => supabase.from(table).select('*', { count: 'exact', head: true });
+        const [linked, notBilled, billed, accepted, suggested] = await Promise.all([
+          head('activity_demo_links'),
+          head('activity_demo_links').eq('billing_status', 'not_billed'),
+          head('activity_demo_links').eq('billing_status', 'billed'),
+          head('activity_demo_links').eq('billing_status', 'accepted'),
+          head('activity_demo_suggestions').eq('rank', 1),
+        ]);
+        setDemoPurchase({
+          linked: linked.count ?? 0,
+          notBilled: notBilled.count ?? 0,
+          billed: billed.count ?? 0,
+          accepted: accepted.count ?? 0,
+          needsConfirm: suggested.count ?? 0,
+        });
       } catch {
-        setDemoPurchase({ demoCount: 0, purchaseCount: 0, purchaseAfterDemo: 0, demoOnlyProjects: 0 });
+        setDemoPurchase({ linked: 0, notBilled: 0, billed: 0, accepted: 0, needsConfirm: 0 });
       }
     } catch (e) {
       const msg = errorMessage(e, t('common.failedToLoad'));
@@ -334,7 +334,7 @@ function StaffDashboard() {
 
         {/* ── Row 4: categories + demo → purchase ── */}
         {showCategoryBreakdown && (
-          <BentoCard span={(demoPurchase.demoCount > 0 || demoPurchase.purchaseCount > 0) ? 8 : 12} title={t('dashboard.todayByCategory')}>
+          <BentoCard span={(demoPurchase.linked > 0 || demoPurchase.needsConfirm > 0) ? 8 : 12} title={t('dashboard.todayByCategory')}>
             {categoryCounts.length === 0 ? (
               <p className="text-[12.5px] text-slate-400">{t('dashboard.noActiveCategories')}</p>
             ) : (
@@ -353,13 +353,17 @@ function StaffDashboard() {
           </BentoCard>
         )}
 
-        {(demoPurchase.demoCount > 0 || demoPurchase.purchaseCount > 0) && (
-          <BentoCard span={showCategoryBreakdown ? 4 : 12} title={t('dashboard.demoToPurchase')}>
+        {(demoPurchase.linked > 0 || demoPurchase.needsConfirm > 0) && (
+          <BentoCard span={showCategoryBreakdown ? 4 : 12} title={t('dashboard.demoToPurchase')}
+            action={<SeeAll href="/demo-recap" />}>
             <div className="space-y-1">
-              <StripeRow color="#2a78d6" title={t('dashboard.demoCount')} right={<b className="tabular-nums">{demoPurchase.demoCount}</b>} />
-              <StripeRow color="#7c3aed" title={t('dashboard.purchaseCount')} right={<b className="tabular-nums">{demoPurchase.purchaseCount}</b>} />
-              <StripeRow color="#059669" title={t('dashboard.purchaseAfterDemo')} right={<b className="tabular-nums">{demoPurchase.purchaseAfterDemo}</b>} />
-              <StripeRow color="#eda100" title={t('dashboard.demoOnlyProjects')} right={<b className="tabular-nums">{demoPurchase.demoOnlyProjects}</b>} />
+              {demoPurchase.needsConfirm > 0 && (
+                <StripeRow color="#eda100" href="/demo-recap" title={t('recap.needsConfirm')}
+                  right={<b className="tabular-nums">{demoPurchase.needsConfirm}</b>} />
+              )}
+              <StripeRow color="#64748b" title={t('recap.notBilled')} right={<b className="tabular-nums">{demoPurchase.notBilled}</b>} />
+              <StripeRow color="#2a78d6" title={t('recap.billed')} right={<b className="tabular-nums">{demoPurchase.billed}</b>} />
+              <StripeRow color="#059669" title={t('recap.accepted')} right={<b className="tabular-nums">{demoPurchase.accepted}</b>} />
             </div>
             <p className="text-[11px] text-slate-400 mt-2">{t('dashboard.demoToPurchaseSubtitle')}</p>
           </BentoCard>

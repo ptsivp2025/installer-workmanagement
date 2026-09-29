@@ -16,9 +16,10 @@ export function ProjectFormModal({
   const { user } = useAuth();
   const { t } = useLanguage();
   const [divisions, setDivisions] = useState<SalesDivision[]>([]);
+  const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]);
   const [form, setForm] = useState({
     code: '', name: '', address: '', latitude: '', longitude: '',
-    expected_completion: '', notes: '', status: 'active', sales_division_id: '', sales_person_name: '',
+    expected_completion: '', notes: '', status: 'active', sales_division_id: '', sales_user_id: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +28,11 @@ export function ProjectFormModal({
     if (!open) return;
     supabase.from('sales_divisions').select('*').eq('active', true).order('sort_order')
       .then((res: { data: SalesDivision[] | null }) => setDivisions(res.data ?? []));
+    // The project belongs to ONE sales account: that account is what decides
+    // who sees the project, its photos and its reviews (migration 029).
+    supabase.from('users').select('id, full_name, username, sales_division_id')
+      .eq('role', 'sales').eq('active', true).eq('approval_status', 'approved').order('full_name')
+      .then((res: { data: SalesUser[] | null }) => setSalesUsers(res.data ?? []));
   }, [open]);
 
   useEffect(() => {
@@ -37,10 +43,10 @@ export function ProjectFormModal({
         address: project.address ?? '', latitude: project.latitude?.toString() ?? '',
         longitude: project.longitude?.toString() ?? '', expected_completion: project.expected_completion ?? '',
         notes: project.notes ?? '', status: project.status, sales_division_id: project.sales_division_id ?? '',
-        sales_person_name: project.sales_person_name ?? '',
+        sales_user_id: project.sales_user_id ?? '',
       });
     } else {
-      setForm({ code: `PRJ-${Date.now().toString(36).toUpperCase()}`, name: '', address: '', latitude: '', longitude: '', expected_completion: '', notes: '', status: 'active', sales_division_id: '', sales_person_name: '' });
+      setForm({ code: `PRJ-${Date.now().toString(36).toUpperCase()}`, name: '', address: '', latitude: '', longitude: '', expected_completion: '', notes: '', status: 'active', sales_division_id: '', sales_user_id: '' });
     }
     setError(null);
   }, [open, project]);
@@ -53,6 +59,7 @@ export function ProjectFormModal({
     setError(null);
 
     const division = divisions.find(d => d.id === form.sales_division_id);
+    const owner = salesUsers.find(u => u.id === form.sales_user_id);
     const payload = {
       code: form.code.trim(),
       name: form.name.trim(),
@@ -64,7 +71,10 @@ export function ProjectFormModal({
       notes: form.notes.trim() || null,
       status: form.status,
       sales_division_id: form.sales_division_id,
-      sales_person_name: form.sales_person_name.trim() || null,
+      sales_user_id: form.sales_user_id || null,
+      // Kept in step with the chosen account so exports and older screens
+      // that read the plain name still show the right person.
+      sales_person_name: owner?.full_name ?? null,
     };
 
     const result = project
@@ -102,8 +112,16 @@ export function ProjectFormModal({
               placeholder={t('projects.selectCustomer')}
             />
           </Field>
-          <Field label={t('projects.salesPersonName')}>
-            <input value={form.sales_person_name} onChange={e => setForm(f => ({ ...f, sales_person_name: e.target.value }))} className={inputCls} placeholder="e.g. Budi" />
+          <Field label={t('projects.salesOwner')}>
+            <SearchableSelect
+              value={form.sales_user_id}
+              onChange={v => setForm(f => ({ ...f, sales_user_id: v }))}
+              options={salesUsers
+                .filter(u => !form.sales_division_id || !u.sales_division_id || u.sales_division_id === form.sales_division_id)
+                .map(u => ({ value: u.id, label: u.full_name || u.username, hint: `@${u.username}` }))}
+              placeholder={t('projects.selectSalesOwner')}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">{t('projects.salesOwnerHint')}</p>
           </Field>
         </div>
         <LocationPicker
@@ -128,6 +146,8 @@ export function ProjectFormModal({
     </Modal>
   );
 }
+
+interface SalesUser { id: string; full_name: string; username: string; sales_division_id: string | null }
 
 const inputCls = 'w-full rounded-control border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500';
 

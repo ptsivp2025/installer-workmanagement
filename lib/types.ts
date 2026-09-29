@@ -11,10 +11,70 @@ export interface Project {
   expected_completion: string | null;
   sales_division_id: string | null;
   sales_person_name: string | null;
+  /** The sales account this project belongs to (029). NULL = not assigned yet. */
+  sales_user_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   sales_divisions?: Pick<SalesDivision, 'id' | 'name' | 'code'>;
+  sales_user?: { id: string; full_name: string; username: string } | null;
+}
+
+/** A confirmed Demo → Purchase link and how the claim against the installer is going (029). */
+export interface DemoLink {
+  purchase_activity_id: string;
+  demo_activity_id: string;
+  match_reason: 'room_and_product' | 'room' | 'product' | 'manual';
+  billing_status: 'not_billed' | 'billed' | 'accepted' | 'rejected';
+  billing_note: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string;
+}
+
+/** One row of the Demo → Bongkar → Beli timeline (view activity_demo_timeline, 029). */
+export interface DemoTimelineRow {
+  activity_id: string;
+  project_id: string;
+  request_number: string;
+  title: string;
+  room_name: string | null;
+  status: string;
+  scheduled_date: string;
+  completed_at: string | null;
+  product_brand: string | null;
+  product_type: string | null;
+  product_model: string | null;
+  category_name: string;
+  counts_as_demo: boolean;
+  counts_as_installation: boolean;
+  demo_activity_id: string | null;
+  match_reason: DemoLink['match_reason'] | null;
+  billing_status: DemoLink['billing_status'] | null;
+  billing_note: string | null;
+  demo_completed_at: string | null;
+  demo_request_number: string | null;
+  demo_room_name: string | null;
+  demo_product_brand: string | null;
+  demo_product_type: string | null;
+  demo_product_model: string | null;
+  days_since_demo: number | null;
+}
+
+/** A candidate demo for a purchase that has no confirmed link yet (view activity_demo_suggestions, 029). */
+export interface DemoSuggestion {
+  purchase_activity_id: string;
+  project_id: string;
+  demo_activity_id: string;
+  demo_request_number: string;
+  demo_title: string;
+  demo_room_name: string | null;
+  demo_completed_at: string | null;
+  demo_product_brand: string | null;
+  demo_product_type: string | null;
+  demo_product_model: string | null;
+  match_reason: DemoLink['match_reason'];
+  days_since_demo: number | null;
+  rank: number;
 }
 
 export interface ActivityCategory {
@@ -151,6 +211,9 @@ export interface Activity {
   product_brand: string | null;
   product_type: string | null;
   product_model: string | null;
+  /** Room / installation spot (029) — what links a demo to its later purchase
+   *  even when the product itself was swapped. */
+  room_name?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

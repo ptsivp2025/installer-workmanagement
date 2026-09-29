@@ -30,13 +30,30 @@ export function ActivityFormModal({
     project_id: '', category_id: '', title: '',
     scheduled_date: '', start_time: '', end_time: '', priority: 'normal', notes: '',
     pic_name: '', pic_phone: '',
-    product_brand: '', product_type: '', product_model: '',
+    product_brand: '', product_type: '', product_model: '', room_name: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selectedCategory = categories.find(c => c.id === form.category_id) ?? null;
   const needsProduct = !!selectedCategory && (selectedCategory.counts_as_demo || selectedCategory.counts_as_installation);
+  const [roomSuggestions, setRoomSuggestions] = useState<string[]>([]);
+
+  // Rooms already used on this project, so the same spot is spelled the same
+  // way every time — that spelling is what later matches a demo to its
+  // purchase (029).
+  useEffect(() => {
+    if (!open || !form.project_id) { setRoomSuggestions([]); return; }
+    supabase.from('activities').select('room_name').eq('project_id', form.project_id).not('room_name', 'is', null).limit(200)
+      .then((res: { data: { room_name: string | null }[] | null }) => {
+        const seen = new Map<string, string>();
+        for (const r of res.data ?? []) {
+          const name = (r.room_name ?? '').trim();
+          if (name) seen.set(name.toLowerCase().replace(/\s+/g, ' '), name);
+        }
+        setRoomSuggestions([...seen.values()].sort());
+      });
+  }, [open, form.project_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,13 +74,14 @@ export function ActivityFormModal({
         priority: activity.priority, notes: activity.notes ?? '',
         pic_name: activity.pic_name ?? '', pic_phone: activity.pic_phone ?? '',
         product_brand: activity.product_brand ?? '', product_type: activity.product_type ?? '', product_model: activity.product_model ?? '',
+        room_name: activity.room_name ?? '',
       });
     } else {
       setForm({
         project_id: defaultProjectId ?? '', category_id: categories.find(c => c.active)?.id ?? '', title: '',
         scheduled_date: localDateKey(),
         start_time: '', end_time: '', priority: 'normal', notes: '',
-        pic_name: '', pic_phone: '', product_brand: '', product_type: '', product_model: '',
+        pic_name: '', pic_phone: '', product_brand: '', product_type: '', product_model: '', room_name: '',
       });
     }
     // The picker only lists active projects, so load the current one by id:
@@ -117,6 +135,7 @@ export function ActivityFormModal({
       product_brand: form.product_brand.trim() || null,
       product_type: form.product_type.trim() || null,
       product_model: form.product_model.trim() || null,
+      room_name: form.room_name.trim() || null,
     };
 
     if (activity) {
@@ -173,6 +192,7 @@ export function ActivityFormModal({
       p_product_type: productFields.product_type,
       p_product_model: productFields.product_model,
       p_personnel: personnel,
+      p_room_name: productFields.room_name,
     });
 
     setSaving(false);
@@ -246,6 +266,18 @@ export function ActivityFormModal({
         {needsProduct && (
           <div className="rounded-control border border-slate-200 bg-slate-50 p-3.5 space-y-3">
             <p className="text-sm font-medium text-slate-700">{t('activity.installationInfo')}</p>
+            {/* The room is what ties a demo to the purchase that follows it,
+                even when the product was swapped in between (029). Free text
+                with the rooms already used on this project as suggestions, so
+                the same spot is spelled the same way every time. */}
+            <Field label={t('activity.roomName')}>
+              <input value={form.room_name} onChange={e => setForm(f => ({ ...f, room_name: e.target.value }))}
+                className={inputCls} placeholder={t('activity.roomNamePlaceholder')} list="room-suggestions" />
+              <datalist id="room-suggestions">
+                {roomSuggestions.map(r => <option key={r} value={r} />)}
+              </datalist>
+              <p className="text-xs text-slate-400 mt-1">{t('activity.roomNameHint')}</p>
+            </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label={t('activity.productBrand')} required>
                 <input value={form.product_brand} onChange={e => setForm(f => ({ ...f, product_brand: e.target.value }))} className={inputCls} placeholder={t('activity.productBrandPlaceholder')} list="product-brand-suggestions" />
