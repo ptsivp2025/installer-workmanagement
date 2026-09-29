@@ -6,7 +6,8 @@ import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
-import { formatDate, errorMessage } from '@/lib/utils';
+import { formatDate, errorMessage, ilikeAny, fetchAllRows } from '@/lib/utils';
+import { useSessionState, useDebouncedValue } from '@/lib/useListState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
@@ -15,7 +16,8 @@ export default function ProjectProgressListPage() {
   const { t } = useLanguage();
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, { total: number; completed: number; inProgress: number }>>({});
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useSessionState('projectProgress.search', '');
+  const debouncedSearch = useDebouncedValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,29 +26,34 @@ export default function ProjectProgressListPage() {
     setError(null);
     try {
       let query = supabase.from('projects').select('*').in('status', ['active', 'on_hold']).order('created_at', { ascending: false }).limit(100);
-      if (search.trim()) query = query.or(`name.ilike.%${search.trim()}%,code.ilike.%${search.trim()}%`);
+      const searchFilter = ilikeAny(['name', 'code', 'customer_name'], debouncedSearch);
+      if (searchFilter) query = query.or(searchFilter);
       const { data, error: err } = await query;
       if (err) throw err;
       setProjects((data as Project[]) ?? []);
 
       const ids = ((data as Project[]) ?? []).map(p => p.id);
       if (ids.length > 0) {
-        const { data: acts } = await supabase.from('activities').select('project_id, status').in('project_id', ids);
+        // Up to 100 projects' activities can pass the API's 1,000-row cap.
+        const acts = await fetchAllRows<{ project_id: string; status: string }>((from, to) => supabase.from('activities')
+          .select('id, project_id, status').in('project_id', ids).order('id').range(from, to));
         const next: Record<string, { total: number; completed: number; inProgress: number }> = {};
-        for (const a of acts ?? []) {
+        for (const a of acts) {
           next[a.project_id] ??= { total: 0, completed: 0, inProgress: 0 };
           next[a.project_id].total++;
           if (a.status === 'completed') next[a.project_id].completed++;
           if (a.status === 'in_progress') next[a.project_id].inProgress++;
         }
         setCounts(next);
+      } else {
+        setCounts({});
       }
     } catch (e) {
       setError(errorMessage(e, t('projectProgress.failedToLoad')));
     } finally {
       setLoading(false);
     }
-  }, [search, t]);
+  }, [debouncedSearch, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -57,7 +64,7 @@ export default function ProjectProgressListPage() {
           <h1 className="text-xl font-semibold text-slate-900">{t('nav.projectProgress')}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('projectProgress.subtitle')}</p>
         </div>
-        <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+        <button onClick={load} title={t('common.refresh')} aria-label={t('common.refresh')} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>

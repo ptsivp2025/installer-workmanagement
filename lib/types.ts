@@ -95,6 +95,8 @@ export interface PlatformSettings {
   timezone: string;
   date_format: string;
   show_dashboard_category_breakdown: boolean;
+  /** Migration 024: GPS-verified jobs must be completed in the Android app. */
+  require_native_app?: boolean;
   primary_color: string;
   secondary_color: string;
   login_bg_url: string | null;
@@ -138,6 +140,12 @@ export interface Activity {
   gps_captured_at: string | null;
   distance_from_target_m: number | null;
   gps_validation_status: string | null;
+  /** Fake-GPS signals found at completion (migration 023); empty = clean. */
+  gps_risk_flags?: string[] | null;
+  /** GPS check-in at start (migration 025). */
+  started_at?: string | null;
+  start_distance_m?: number | null;
+  start_gps_flags?: string[] | null;
   pic_name: string | null;
   pic_phone: string | null;
   product_brand: string | null;

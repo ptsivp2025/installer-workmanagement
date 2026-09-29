@@ -7,18 +7,20 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { ActivityCategory, PlatformSettings } from '@/lib/types';
 import { LoadingState, ErrorState } from '@/components/shared/States';
-import { withTimeout, failIfAnyErrored, errorMessage } from '@/lib/utils';
+import { withTimeout, failIfAnyErrored, fetchAllRows, errorMessage, localDateKey, getDateLocale } from '@/lib/utils';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
 import type { DictKey } from '@/lib/i18n';
 import { InstallerDashboard } from './_components/InstallerDashboard';
+import { notifyAppReady } from '@/lib/native';
 
 interface CategoryCount { category: ActivityCategory; today: number }
 interface DayCount { date: string; label: string; count: number }
 
 async function fetchCompletedByCategory(categoryIds: string[]): Promise<{ id: string; project_id: string }[]> {
   if (categoryIds.length === 0) return [];
-  const { data } = await supabase.from('activities').select('id, project_id').eq('status', 'completed').in('category_id', categoryIds);
-  return (data as { id: string; project_id: string }[] | null) ?? [];
+  return fetchAllRows<{ id: string; project_id: string }>((from, to) => supabase.from('activities')
+    .select('id, project_id').eq('status', 'completed').in('category_id', categoryIds)
+    .order('id').range(from, to));
 }
 
 // Same colors as StatusBadge/statusColor (lib/constants.ts) — a chart and a
@@ -75,29 +77,41 @@ function StaffDashboard() {
     try {
       const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-      const today = todayStart.toISOString().slice(0, 10);
+      const today = localDateKey(todayStart);
       const fourteenDaysAgo = new Date(todayStart); fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
 
-      const results = await withTimeout(Promise.all([
-        supabase.from('activities').select('*', { count: 'exact', head: true }).eq('scheduled_date', today),
-        supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
-        supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'completed').gte('completed_at', todayStart.toISOString()).lte('completed_at', todayEnd.toISOString()),
-        supabase.from('form_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('activity_categories').select('*').eq('active', true).order('sort_order'),
-        supabase.from('activities').select('status'),
-        supabase.from('activities').select('completed_at').eq('status', 'completed').gte('completed_at', fourteenDaysAgo.toISOString()),
-        supabase.from('sales_reviews').select('status, rating'),
+      // Totals are counted by the database (count/head), never by fetching
+      // rows and adding them up here: the API returns at most 1,000 rows per
+      // request, so a client-side tally silently stops at 1,000. The two
+      // lists that do need rows are read page by page (fetchAllRows).
+      const [results, byStatus, pendingSales, recentCompletions, ratings] = await withTimeout(Promise.all([
+        Promise.all([
+          supabase.from('activities').select('*', { count: 'exact', head: true }).eq('scheduled_date', today),
+          supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'in_progress'),
+          supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', 'completed').gte('completed_at', todayStart.toISOString()).lte('completed_at', todayEnd.toISOString()),
+          supabase.from('form_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+          supabase.from('activity_categories').select('*').eq('active', true).order('sort_order'),
+        ]),
+        Promise.all(ACTIVITY_STATUSES.map(s =>
+          supabase.from('activities').select('*', { count: 'exact', head: true }).eq('status', s))),
+        supabase.from('sales_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        fetchAllRows<{ id: string; completed_at: string }>((from, to) => supabase.from('activities')
+          .select('id, completed_at').eq('status', 'completed').gte('completed_at', fourteenDaysAgo.toISOString())
+          .order('id').range(from, to)),
+        fetchAllRows<{ id: string; rating: number }>((from, to) => supabase.from('sales_reviews')
+          .select('id, rating').eq('status', 'submitted').not('rating', 'is', null)
+          .order('id').range(from, to)),
       ]));
 
       // A PostgREST error resolves the promise rather than rejecting it, so
       // without this the page would silently render zeros (or, when a
       // request stalls, spin forever) instead of telling anyone what broke.
-      failIfAnyErrored(results);
+      failIfAnyErrored([...results, ...byStatus, pendingSales]);
 
       const [
         { count: todayC }, { count: inProgC }, { count: completedTodayC }, { count: pendingC }, { count: projC },
-        { data: cats }, { data: allStatuses }, { data: recentCompletions }, { data: salesReviews },
+        { data: cats },
       ] = results;
 
       // Optional on purpose: a missing settings row (or a column from a
@@ -121,26 +135,25 @@ function StaffDashboard() {
       setCategoryCounts(counts);
 
       const sc: Record<string, number> = {};
-      for (const a of (allStatuses as { status: string }[]) ?? []) sc[a.status] = (sc[a.status] ?? 0) + 1;
+      ACTIVITY_STATUSES.forEach((s, i) => { sc[s] = byStatus[i].count ?? 0; });
       setStatusCounts(sc);
 
       const byDay: Record<string, number> = {};
-      for (const a of (recentCompletions as { completed_at: string }[]) ?? []) {
-        const d = a.completed_at.slice(0, 10);
+      for (const a of recentCompletions as { completed_at: string }[]) {
+        const d = localDateKey(new Date(a.completed_at));
         byDay[d] = (byDay[d] ?? 0) + 1;
       }
       const days: DayCount[] = [];
       for (let i = 13; i >= 0; i--) {
         const d = new Date(todayStart); d.setDate(d.getDate() - i);
-        const key = d.toISOString().slice(0, 10);
-        days.push({ date: key, label: d.toLocaleDateString('en-US', { day: '2-digit', month: 'short' }), count: byDay[key] ?? 0 });
+        const key = localDateKey(d);
+        days.push({ date: key, label: d.toLocaleDateString(getDateLocale(), { day: '2-digit', month: 'short' }), count: byDay[key] ?? 0 });
       }
       setTrend(days);
 
-      const reviews = (salesReviews as { status: string; rating: number | null }[]) ?? [];
-      const rated = reviews.filter(r => r.status === 'submitted' && r.rating != null);
-      setAvgRating(rated.length ? rated.reduce((sum, r) => sum + (r.rating ?? 0), 0) / rated.length : null);
-      setPendingSalesReviews(reviews.filter(r => r.status === 'pending').length);
+      const rated = ratings as { id: string; rating: number }[];
+      setAvgRating(rated.length ? rated.reduce((sum, r) => sum + r.rating, 0) / rated.length : null);
+      setPendingSalesReviews(pendingSales.count ?? 0);
 
       // Best-effort: Demo -> Purchase is a reporting overlay, never something
       // that should take the whole dashboard down if a migration is pending.
@@ -152,8 +165,8 @@ function StaffDashboard() {
             fetchCompletedByCategory(demoCatIds),
             fetchCompletedByCategory(installCatIds),
           ]);
-          const { data: eligData } = await supabase.from('activity_discount_eligibility').select('activity_id');
-          const elig = (eligData as { activity_id: string }[] | null) ?? [];
+          const elig = await fetchAllRows<{ activity_id: string }>((from, to) =>
+            supabase.from('activity_discount_eligibility').select('activity_id').order('activity_id').range(from, to));
           const purchaseIds = new Set(purchaseActs.map(a => a.id));
           const matchedIds = new Set(elig.map(e => e.activity_id));
           const purchaseAfterDemo = [...purchaseIds].filter(id => matchedIds.has(id)).length;
@@ -171,10 +184,11 @@ function StaffDashboard() {
         setDemoPurchase({ demoCount: 0, purchaseCount: 0, purchaseAfterDemo: 0, demoOnlyProjects: 0 });
       }
     } catch (e) {
-      const msg = errorMessage(e, 'Failed to load dashboard.');
+      const msg = errorMessage(e, t('common.failedToLoad'));
       setError(msg === 'REQUEST_TIMEOUT' ? t('common.requestTimeout') : msg);
     } finally {
       setLoading(false);
+      notifyAppReady(); // Android app: first data is in, drop the loading screen
     }
   }, [t]);
 

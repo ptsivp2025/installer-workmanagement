@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSessionUser } from '@/lib/server-auth';
-import { sendTelegramMessages } from '@/lib/telegram';
+import { sendTelegramMessages, esc } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Best-effort broadcast to every active installer with a linked Telegram
- * chat id when staff schedules a new activity. There's no per-activity
- * assignee at creation time (personnel get recorded during execution), so
- * this notifies the installer pool generally rather than one specific
- * person — see README for the reasoning.
+ * Best-effort Telegram notice when staff schedules a new activity. Goes to
+ * the technicians assigned to it: the create form links them by account
+ * (iwm_create_activity, 015). Only when nobody linked was assigned does it
+ * fall back to the whole installer pool, so the job isn't silently missed.
  */
 export async function POST(request: NextRequest) {
   const caller = await getSessionUser(request);
@@ -28,8 +27,13 @@ export async function POST(request: NextRequest) {
       .select('title, scheduled_date, request_number, activity_categories(name), projects(name)')
       .eq('id', activityId)
       .single(),
-    supabase.from('users').select('telegram_chat_id').eq('active', true).eq('role', 'installer').not('telegram_chat_id', 'is', null),
+    supabase.from('activity_personnel').select('user_id').eq('activity_id', activityId).not('user_id', 'is', null),
   ]);
+
+  const assignedIds = ((recipients as { user_id: string }[]) ?? []).map(r => r.user_id);
+  let userQuery = supabase.from('users').select('telegram_chat_id').eq('active', true).not('telegram_chat_id', 'is', null);
+  userQuery = assignedIds.length > 0 ? userQuery.in('id', assignedIds) : userQuery.eq('role', 'installer');
+  const { data: users } = await userQuery;
 
   if (!activity) return NextResponse.json({ error: 'Activity not found.' }, { status: 404 });
 
@@ -38,12 +42,12 @@ export async function POST(request: NextRequest) {
 
   const text =
     `📅 <b>New Activity Scheduled</b>\n` +
-    `${category?.name ?? 'Activity'}: ${activity.title}\n` +
-    `Project: ${project?.name ?? '—'}\n` +
+    `${esc(category?.name ?? 'Activity')}: ${esc(activity.title)}\n` +
+    `Project: ${esc(project?.name ?? '—')}\n` +
     `Date: ${activity.scheduled_date}\n` +
-    `Request #: ${activity.request_number}`;
+    `Request #: ${esc(activity.request_number)}`;
 
-  const chatIds = ((recipients as { telegram_chat_id: string | null }[]) ?? []).map(r => r.telegram_chat_id).filter((v): v is string => !!v);
+  const chatIds = ((users as { telegram_chat_id: string | null }[]) ?? []).map(r => r.telegram_chat_id).filter((v): v is string => !!v);
   await sendTelegramMessages(chatIds, text);
 
   return NextResponse.json({ sent: chatIds.length });

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PUBLIC_PREFIXES = ['/_next/', '/favicon', '/icon'];
+const PUBLIC_PREFIXES = ['/_next/', '/favicon', '/icon', '/logo.svg', '/app/'];
 
 const PUBLIC_EXACT = [
   '/login',
@@ -14,6 +14,8 @@ const PUBLIC_EXACT = [
   '/api/auth/logout',
   '/api/auth/session',
   '/api/auth/register',
+  '/forgot-password',
+  '/api/auth/forgot-password',
   '/api/public/branding',
   '/api/public/sales-divisions',
 ];

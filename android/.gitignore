@@ -1,0 +1,6 @@
+build/
+# Signing key + its password: never commit (the repo has a public copy).
+release.keystore
+keystore.password
+# GPS reading signing key (build.sh, migration 026): same rule.
+gps.key

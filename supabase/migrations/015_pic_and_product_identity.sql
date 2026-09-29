@@ -234,6 +234,9 @@ $$;
 -- platform only reports "a completed Demo exists before this Purchase,"
 -- never a policy about how long is long enough — that stays a human
 -- decision.
+-- Dropped first: CREATE OR REPLACE VIEW can't rename/reorder the columns
+-- 009's version had, so on a fresh install this migration failed here.
+DROP VIEW IF EXISTS public.activity_discount_eligibility;
 CREATE OR REPLACE VIEW public.activity_discount_eligibility
 WITH (security_invoker = true) AS
 SELECT

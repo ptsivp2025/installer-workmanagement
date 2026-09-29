@@ -7,6 +7,7 @@ import { useLanguage } from '@/app/providers';
 import { LanguageToggle } from '@/components/shared/LanguageToggle';
 import { POSITIONS } from '@/lib/constants';
 import type { DictKey } from '@/lib/i18n';
+import { SearchableSelect } from '@/components/shared/SearchableSelect';
 
 interface DivisionOption { id: string; name: string }
 
@@ -71,9 +72,9 @@ export default function RegisterPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-xl object-contain bg-white/15 backdrop-blur" />
             ) : (
-              <div className="h-9 w-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center font-bold text-lg">
-                {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
-              </div>
+              // Default logo (a worker in a hard hat) until an admin uploads one.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.svg" alt="" className="h-9 w-9 rounded-xl shrink-0" />
             )}
             <span className="text-lg font-bold tracking-tight">{brand?.platform_name ?? 'Installer Work Management'}</span>
           </div>
@@ -116,7 +117,7 @@ export default function RegisterPage() {
                 </Field>
 
                 <Field label={t('register.username')} hint={t('register.usernameHint')}>
-                  <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase() }))} className={inputCls} required />
+                  <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value.toLowerCase() }))} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className={inputCls} required />
                 </Field>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -136,10 +137,12 @@ export default function RegisterPage() {
                     </select>
                   </Field>
                   <Field label={t('register.salesDivision')}>
-                    <select value={form.sales_division_id} onChange={e => setForm(f => ({ ...f, sales_division_id: e.target.value }))} className={inputCls} required>
-                      <option value="">{t('register.selectDivision')}</option>
-                      {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                    </select>
+                    <SearchableSelect
+                      value={form.sales_division_id}
+                      onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
+                      options={divisions.map(d => ({ value: d.id, label: d.name }))}
+                      placeholder={t('register.selectDivision')}
+                    />
                   </Field>
                 </div>
 

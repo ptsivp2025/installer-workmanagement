@@ -44,7 +44,12 @@ export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
       const tasks: Promise<void>[] = [];
 
       if (user!.role === 'admin') {
-        tasks.push(headCount('users', 'approval_status', 'pending').then(n => { next.registrations = n; }));
+        // Admin Panel badge = everything waiting on an admin in Users:
+        // registrations to approve + "forgot password" requests (025).
+        tasks.push(Promise.all([
+          headCount('users', 'approval_status', 'pending'),
+          headCount('password_reset_requests', 'status', 'pending'),
+        ]).then(([regs, resets]) => { next.registrations = regs + resets; }));
       }
       if (user!.role === 'admin' || user!.role === 'supervisor') {
         tasks.push(headCount('project_requests', 'status', 'pending').then(n => { next.projectRequests = n; }));

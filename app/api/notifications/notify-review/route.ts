@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSessionUser } from '@/lib/server-auth';
-import { sendTelegramNotification } from '@/lib/telegram';
+import { sendTelegramNotification, esc } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +28,10 @@ export async function POST(request: NextRequest) {
 
   await sendTelegramNotification(
     `${icon} <b>Form Review ${review.status === 'approved' ? 'Approved' : 'Rejected'}</b>\n` +
-    `${activity?.activity_categories?.name ?? ''}: ${activity?.title ?? ''}\n` +
-    `Project: ${activity?.projects?.name ?? ''} (${activity?.projects?.code ?? ''})\n` +
-    `By: ${user.full_name ?? user.username}` +
-    (review.notes ? `\nNotes: ${review.notes}` : ''),
+    `${esc(activity?.activity_categories?.name)}: ${esc(activity?.title)}\n` +
+    `Project: ${esc(activity?.projects?.name)} (${esc(activity?.projects?.code)})\n` +
+    `By: ${esc(user.full_name ?? user.username)}` +
+    (review.notes ? `\nNotes: ${esc(review.notes)}` : ''),
     'review_decision'
   );
 

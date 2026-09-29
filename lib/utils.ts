@@ -1,15 +1,49 @@
+// Set by LanguageProvider on every render, so every formatDate() call in the
+// tree below it follows the chosen UI language ("25 Sep 2026" in Indonesian
+// instead of "Sep 25, 2026") without threading `lang` through 30+ call sites.
+let dateLocale = 'id-ID';
+export function setDateLocale(lang: 'en' | 'id'): void {
+  dateLocale = lang === 'en' ? 'en-US' : 'id-ID';
+}
+export function getDateLocale(): string {
+  return dateLocale;
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * YYYY-MM-DD in the browser's own timezone. `toISOString().slice(0, 10)` is
+ * the UTC date instead — in WIB (UTC+7) local midnight is 17:00 the previous
+ * day in UTC, so "today" came out as yesterday.
+ */
+export function localDateKey(d: Date = new Date()): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
+/**
+ * Makes free text safe to drop into a PostgREST `.or(col.ilike.%term%,…)`
+ * filter. A comma or parenthesis in the term (a customer called "PT. Maju,
+ * Tbk") otherwise splits or unbalances the filter and the whole list request
+ * fails with a parse error instead of just returning fewer rows.
+ */
+export function ilikeAny(columns: string[], term: string): string | null {
+  const clean = term.replace(/[,()"\\]/g, ' ').trim();
+  if (!clean) return null;
+  return columns.map(c => `${c}.ilike.%${clean}%`).join(',');
 }
 
 export function formatDistance(meters: number | null | undefined): string {
@@ -48,6 +82,30 @@ export function withTimeout<T>(promise: PromiseLike<T>, ms = 20000): Promise<T> 
       err => { clearTimeout(timer); reject(err); },
     );
   });
+}
+
+/**
+ * Every row a query matches, fetched page by page. The Supabase API returns
+ * at most 1,000 rows per request (Settings → API → Max rows) and says
+ * nothing when it cuts a result short, so any total, chart or export built
+ * from one plain select quietly stops growing at 1,000.
+ *
+ * `page(from, to)` must return the rows in a stable order (order by a unique
+ * column), or pages can overlap. Advances by what actually came back, so a
+ * lower server cap than `pageSize` still reads every row.
+ */
+export async function fetchAllRows<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  { pageSize = 1000, maxRows = 50000 }: { pageSize?: number; maxRows?: number } = {},
+): Promise<T[]> {
+  const rows: T[] = [];
+  while (rows.length < maxRows) {
+    const { data, error } = await page(rows.length, rows.length + pageSize - 1);
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+  }
+  return rows;
 }
 
 /**

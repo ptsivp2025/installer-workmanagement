@@ -1,6 +1,6 @@
 'use client';
 
-import { Layers, Users, Building2, Palette, Bell, Plug } from 'lucide-react';
+import { Layers, Users, Building2, Palette, Bell, Plug, History } from 'lucide-react';
 import { useLanguage } from '@/app/providers';
 import type { DictKey } from '@/lib/i18n';
 import type { AdminTab } from './types';
@@ -25,6 +25,12 @@ const GROUPS: { labelKey: DictKey; items: { tab: AdminTab; labelKey: DictKey; ic
     items: [
       { tab: 'notifications', labelKey: 'admin.tab.notifications', icon: Bell },
       { tab: 'integrations', labelKey: 'admin.tab.integrations', icon: Plug },
+    ],
+  },
+  {
+    labelKey: 'admin.group.security',
+    items: [
+      { tab: 'audit-log', labelKey: 'admin.tab.auditLog', icon: History },
     ],
   },
 ];

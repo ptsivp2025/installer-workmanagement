@@ -8,6 +8,7 @@ import { Modal } from '@/components/shared/Modal';
 import { LocationPicker } from '@/components/shared/LocationPicker';
 import type { ActivityCategory } from '@/lib/types';
 import { errorMessage } from '@/lib/utils';
+import { SearchableSelect } from '@/components/shared/SearchableSelect';
 
 /**
  * A Sales/customer account's own request for new work — the "guest" side of
@@ -50,7 +51,7 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
     setSaving(true);
     setError(null);
 
-    const { error: err } = await supabase.from('project_requests').insert({
+    const { data: created, error: err } = await supabase.from('project_requests').insert({
       requested_by: user!.id,
       sales_division_id: salesDivisionId,
       project_name: form.project_name.trim(),
@@ -63,10 +64,17 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
       requested_date: form.requested_date || null,
       notes: form.notes.trim() || null,
       status: 'pending',
-    });
+    }).select('id').single();
 
     setSaving(false);
     if (err) { setError(errorMessage(err, t('projectRequests.saveFailed'))); return; }
+    // Telegram heads-up to the admins; the nav badge alone waits until
+    // someone happens to open the app.
+    if (created?.id) {
+      fetch('/api/notifications/project-requested', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requestId: created.id }),
+      }).catch(() => {});
+    }
     onSaved();
   }
 
@@ -98,10 +106,12 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label={t('projectRequests.desiredCategory')}>
-            <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} className={inputCls}>
-              <option value="">{t('projectRequests.notSure')}</option>
-              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.category_id}
+              onChange={v => setForm(f => ({ ...f, category_id: v }))}
+              options={[{ value: '', label: t('projectRequests.notSure') }, ...categories.map(c => ({ value: c.id, label: c.name }))]}
+              placeholder={t('projectRequests.notSure')}
+            />
           </Field>
           <Field label={t('projectRequests.requestedDate')}>
             <input type="date" value={form.requested_date} onChange={e => setForm(f => ({ ...f, requested_date: e.target.value }))} className={inputCls} />

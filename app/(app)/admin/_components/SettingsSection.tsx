@@ -11,7 +11,7 @@ import { applyThemeColor, DEFAULT_PRIMARY, DEFAULT_SECONDARY } from '@/lib/theme
 const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'];
 
 const emptyForm = {
-  platform_name: '', company_name: '', logo_url: '', timezone: '', date_format: 'DD/MM/YYYY', show_dashboard_category_breakdown: true,
+  platform_name: '', company_name: '', logo_url: '', timezone: '', date_format: 'DD/MM/YYYY', show_dashboard_category_breakdown: true, require_native_app: false,
   primary_color: DEFAULT_PRIMARY, secondary_color: DEFAULT_SECONDARY,
   login_bg_url: '', login_headline: '', login_subheadline: '',
 };
@@ -37,6 +37,7 @@ export function SettingsSection() {
       setForm({
         platform_name: s.platform_name, company_name: s.company_name, logo_url: s.logo_url ?? '', timezone: s.timezone, date_format: s.date_format,
         show_dashboard_category_breakdown: s.show_dashboard_category_breakdown,
+        require_native_app: s.require_native_app ?? false,
         primary_color: s.primary_color ?? DEFAULT_PRIMARY, secondary_color: s.secondary_color ?? DEFAULT_SECONDARY,
         login_bg_url: s.login_bg_url ?? '', login_headline: s.login_headline ?? '', login_subheadline: s.login_subheadline ?? '',
       });
@@ -59,6 +60,7 @@ export function SettingsSection() {
       timezone: form.timezone.trim() || 'Asia/Jakarta',
       date_format: form.date_format,
       show_dashboard_category_breakdown: form.show_dashboard_category_breakdown,
+      require_native_app: form.require_native_app,
       primary_color: form.primary_color,
       secondary_color: form.secondary_color,
       login_bg_url: form.login_bg_url.trim() || null,
@@ -195,6 +197,24 @@ export function SettingsSection() {
                 className={`relative h-5 w-9 rounded-full transition ${form.show_dashboard_category_breakdown ? 'bg-brand-600' : 'bg-slate-200'}`}
               >
                 <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${form.show_dashboard_category_breakdown ? 'translate-x-4' : 'translate-x-0.5'}`} />
+              </button>
+            </label>
+          </div>
+
+          {/* Off by default: turning it on before every installer has the
+              Android app would stop them completing GPS-verified jobs. */}
+          <div className="bg-white rounded-card border border-slate-200 shadow-card p-5">
+            <label className="flex items-center justify-between gap-4 cursor-pointer">
+              <span>
+                <span className="block text-sm text-slate-700">{t('adminSettings.requireNativeApp')}</span>
+                <span className="block text-xs text-slate-400 mt-0.5">{t('adminSettings.requireNativeAppHint')}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, require_native_app: !f.require_native_app }))}
+                className={`relative h-5 w-9 shrink-0 rounded-full transition ${form.require_native_app ? 'bg-brand-600' : 'bg-slate-200'}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${form.require_native_app ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </button>
             </label>
           </div>

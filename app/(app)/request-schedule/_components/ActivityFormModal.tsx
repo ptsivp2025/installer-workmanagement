@@ -9,8 +9,10 @@ import { SearchInput } from '@/components/shared/SearchInput';
 import type { Activity, ActivityCategory, AppUser } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { PRIORITIES } from '@/lib/constants';
+import { errorMessage, localDateKey } from '@/lib/utils';
+import { ProjectPicker, type ProjectOption } from './ProjectPicker';
+import { SearchableSelect } from '@/components/shared/SearchableSelect';
 
-interface ProjectOption { id: string; name: string; code: string; customer_name: string | null; address: string | null; }
 
 export function ActivityFormModal({
   open, onClose, onSaved, categories, activity, defaultProjectId,
@@ -19,7 +21,7 @@ export function ActivityFormModal({
   categories: ActivityCategory[]; activity?: Activity | null; defaultProjectId?: string;
 }) {
   const { t } = useLanguage();
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [users, setUsers] = useState<AppUser[]>([]);
   const [personnelSearch, setPersonnelSearch] = useState('');
   const [selectedPersonnel, setSelectedPersonnel] = useState<string[]>([]);
@@ -38,9 +40,11 @@ export function ActivityFormModal({
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('projects').select('id, name, code, customer_name, address').eq('status', 'active').order('name').limit(200)
-      .then((res: { data: ProjectOption[] | null }) => setProjects(res.data ?? []));
-    supabase.from('users').select('*').eq('active', true).order('full_name')
+    // Only people who can actually go on site. Sales accounts are external
+    // guests and reviewers do office QC; listing them here only made it
+    // easy to "assign" a job to someone who will never see it.
+    supabase.from('users').select('*').eq('active', true).eq('approval_status', 'approved')
+      .in('role', ['installer', 'supervisor', 'admin']).order('full_name')
       .then((res: { data: AppUser[] | null }) => setUsers(res.data ?? []));
   }, [open]);
 
@@ -57,10 +61,18 @@ export function ActivityFormModal({
     } else {
       setForm({
         project_id: defaultProjectId ?? '', category_id: categories.find(c => c.active)?.id ?? '', title: '',
-        scheduled_date: new Date().toISOString().slice(0, 10),
+        scheduled_date: localDateKey(),
         start_time: '', end_time: '', priority: 'normal', notes: '',
         pic_name: '', pic_phone: '', product_brand: '', product_type: '', product_model: '',
       });
+    }
+    // The picker only lists active projects, so load the current one by id:
+    // editing an activity whose project is on hold must still show it.
+    const pid = activity?.project_id ?? defaultProjectId;
+    setSelectedProject(null);
+    if (pid) {
+      supabase.from('projects').select('id, name, code, customer_name, address').eq('id', pid).maybeSingle()
+        .then((res: { data: ProjectOption | null }) => setSelectedProject(res.data));
     }
     setSelectedPersonnel([]);
     setPrimaryPersonnel('');
@@ -85,6 +97,10 @@ export function ActivityFormModal({
       setError(t('activity.requiredFieldsMsg'));
       return;
     }
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      setError(t('activity.endBeforeStart'));
+      return;
+    }
     if (needsProduct && (!form.product_brand.trim() || !form.product_type.trim())) {
       setError(t('activity.productModelRequiredMsg'));
       return;
@@ -96,7 +112,7 @@ export function ActivityFormModal({
     setSaving(true);
     setError(null);
 
-    const project = projects.find(p => p.id === form.project_id);
+    const project = selectedProject;
     const productFields = {
       product_brand: form.product_brand.trim() || null,
       product_type: form.product_type.trim() || null,
@@ -120,7 +136,7 @@ export function ActivityFormModal({
       };
       const result = await supabase.from('activities').update(payload).eq('id', activity.id);
       setSaving(false);
-      if (result.error) { setError(result.error.message); return; }
+      if (result.error) { setError(errorMessage(result.error, t('activity.failedToCreate'))); return; }
       onSaved();
       return;
     }
@@ -138,7 +154,7 @@ export function ActivityFormModal({
       };
     });
 
-    const { error: rpcErr } = await supabase.rpc('iwm_create_activity', {
+    const { data: created, error: rpcErr } = await supabase.rpc('iwm_create_activity', {
       p_project_id: form.project_id,
       p_category_id: form.category_id,
       p_title: form.title.trim(),
@@ -160,7 +176,15 @@ export function ActivityFormModal({
     });
 
     setSaving(false);
-    if (rpcErr) { setError(rpcErr.message ?? t('activity.failedToCreate')); return; }
+    if (rpcErr) { setError(errorMessage(rpcErr, t('activity.failedToCreate'))); return; }
+    // Telegram notice to the assigned team. The route existed but nothing
+    // ever called it, so nobody was told about new jobs.
+    const newId = (created as { activity_id?: string } | null)?.activity_id;
+    if (newId) {
+      fetch('/api/notifications/activity-scheduled', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activityId: newId }),
+      }).catch(() => {});
+    }
     onSaved();
   }
 
@@ -172,16 +196,18 @@ export function ActivityFormModal({
         {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2">{error}</div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label={t('activity.project')} required>
-            <select value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))} className={inputCls}>
-              <option value="">{t('activity.selectProject')}</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name} ({p.code})</option>)}
-            </select>
+            <ProjectPicker
+              selected={selectedProject}
+              onChange={p => { setSelectedProject(p); setForm(f => ({ ...f, project_id: p.id })); }}
+            />
           </Field>
           <Field label={t('activity.category')} required>
-            <select value={form.category_id} onChange={e => setForm(f => ({ ...f, category_id: e.target.value }))} className={inputCls}>
-              <option value="">{t('activity.selectCategory')}</option>
-              {categories.filter(c => c.active).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.category_id}
+              onChange={v => setForm(f => ({ ...f, category_id: v }))}
+              options={categories.filter(c => c.active).map(c => ({ value: c.id, label: c.name }))}
+              placeholder={t('activity.selectCategory')}
+            />
           </Field>
         </div>
         <Field label={t('activity.title')} required>
@@ -208,7 +234,7 @@ export function ActivityFormModal({
             <MapPin className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-500">{t('activity.location')}</p>
-              <p className="text-sm text-slate-700 truncate">{projects.find(p => p.id === form.project_id)?.address || t('activity.projectLocationNotSet')}</p>
+              <p className="text-sm text-slate-700 truncate">{selectedProject?.address || t('activity.projectLocationNotSet')}</p>
               <p className="text-xs text-slate-400 mt-0.5">{t('activity.locationFromProjectHint')}</p>
             </div>
           </div>

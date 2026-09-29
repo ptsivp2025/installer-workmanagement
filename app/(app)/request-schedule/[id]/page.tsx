@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star, ChevronDown } from 'lucide-react';
+import { Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity, ActivityPersonnel, ActivityEvidence, ActivityCategory, FormReview, ActivityDiscountEligibility } from '@/lib/types';
@@ -16,12 +16,15 @@ import { PersonnelPanel } from './_components/PersonnelPanel';
 import { EvidencePanel } from './_components/EvidencePanel';
 import { ExecutionPanel } from './_components/ExecutionPanel';
 import type { DictKey } from '@/lib/i18n';
+import { BackButton } from '@/components/shared/BackButton';
+import { useDialog } from '@/components/shared/ConfirmDialog';
+import { GpsRiskBanner } from '@/components/shared/GpsRiskBanner';
 
 export default function ActivityDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { confirm: askConfirm, dialog } = useDialog();
   const [activity, setActivity] = useState<Activity | null>(null);
   const [projectLatLng, setProjectLatLng] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
@@ -32,6 +35,7 @@ export default function ActivityDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -89,9 +93,11 @@ export default function ActivityDetailPage() {
   useEffect(() => { load(); }, [load]);
 
   async function handleCancel() {
-    if (!confirm(t('activity.cancelConfirm'))) return;
+    if (!(await askConfirm({ title: t('activity.cancelActivity'), message: t('activity.cancelConfirm'), confirmLabel: t('activity.cancelActivity'), danger: true }))) return;
+    setActionError(null);
     const { error: err } = await supabase.rpc('iwm_set_activity_status', { p_activity_id: id, p_status: 'cancelled' });
-    if (!err) load();
+    if (err) { setActionError(errorMessage(err, t('common.actionFailed'))); return; }
+    load();
   }
 
   if (loading) return <LoadingState />;
@@ -104,6 +110,11 @@ export default function ActivityDetailPage() {
   // notes only; everything else the server-side guard trigger refuses
   // (021_sales_reschedule.sql), so the UI never even offers it.
   const canReschedule = user?.role === 'sales';
+  // Running the job (start, photos, team, complete) is field work. Sales
+  // and reviewers only follow along here — offering them "Start" or "Add
+  // photos" just invited taps on buttons that aren't theirs to press (and
+  // for Sales the server now refuses them outright, 022).
+  const canAct = !!user && ['installer', 'supervisor', 'admin'].includes(user.role);
   const targetLat = activity.target_latitude ?? projectLatLng.lat;
   const targetLng = activity.target_longitude ?? projectLatLng.lng;
   const locked = activity.status === 'completed' || activity.status === 'cancelled';
@@ -111,9 +122,7 @@ export default function ActivityDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <button onClick={() => router.push('/request-schedule')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> {t('activity.backToRequestSchedule')}
-      </button>
+      <BackButton fallbackHref="/request-schedule" />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
@@ -196,6 +205,8 @@ export default function ActivityDetailPage() {
           </details>
         )}
 
+        {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
+
         {canEditSchedule && !locked && (
           <button onClick={handleCancel} className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700">
             <Ban className="h-3.5 w-3.5" /> {t('activity.cancelActivity')}
@@ -204,13 +215,18 @@ export default function ActivityDetailPage() {
       </div>
 
       <div className="space-y-4">
-        <ExecutionPanel activity={activity} targetLat={targetLat} targetLng={targetLng} canAct={!!user} onChanged={load} />
-        <PersonnelPanel activityId={activity.id} personnel={personnel} locked={locked} canEdit={!!user} isStaff={!!canEditSchedule} onChanged={load} />
+        <ExecutionPanel
+          activity={activity} targetLat={targetLat} targetLng={targetLng} canAct={canAct} onChanged={load}
+          evidenceCount={evidence.length} personnelCount={personnel.length}
+        />
+        {activity.status === 'completed' && user?.role !== 'sales' && <GpsRiskBanner flags={activity.gps_risk_flags} />}
+        <PersonnelPanel activityId={activity.id} personnel={personnel} locked={locked} canEdit={canAct} isStaff={!!canEditSchedule} onChanged={load} />
         <EvidencePanel
           activityId={activity.id}
           projectId={activity.project_id}
           evidence={evidence}
-          locked={locked}
+          locked={locked || !canAct}
+          cameraOnly={activity.activity_categories?.requires_gps ?? true}
           minRequired={activity.activity_categories?.requires_evidence ? (activity.activity_categories?.evidence_min_count ?? 1) : 0}
           onChanged={load}
         />
@@ -232,6 +248,7 @@ export default function ActivityDetailPage() {
           activity={activity}
         />
       )}
+      {dialog}
     </div>
   );
 }

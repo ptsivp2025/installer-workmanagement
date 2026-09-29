@@ -1,0 +1,262 @@
+-- Database behaviour tests (run by scripts/db-test/run.sh after all migrations).
+-- Every check prints "✓ name" or "✗ name"; the run fails if any "✗" appears.
+
+\set ON_ERROR_STOP 1
+
+-- ── test helpers ───────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION t_check(p_name text, p_ok boolean) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  IF COALESCE(p_ok, false) THEN RAISE NOTICE '✓ %', p_name;
+  ELSE
+    PERFORM set_config('t.failed', (COALESCE(NULLIF(current_setting('t.failed', true), ''), '0')::int + 1)::text, false);
+    RAISE NOTICE '✗ %', p_name;
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION t_raises(p_name text, p_sql text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  EXECUTE p_sql;
+  PERFORM t_check(p_name || ' (expected an error, got none)', false);
+EXCEPTION WHEN OTHERS THEN
+  PERFORM t_check(p_name, true);
+END $$;
+
+CREATE OR REPLACE FUNCTION t_as(p_user uuid) RETURNS void LANGUAGE sql AS $$
+  SELECT set_config('request.jwt.claims', json_build_object('user_id', p_user)::text, false);
+$$;
+
+-- A realistic GPS series near (-6.2, 106.8), and variants.
+CREATE OR REPLACE FUNCTION t_real(p_native boolean DEFAULT false, p_mock boolean DEFAULT false) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(s || CASE WHEN p_native THEN jsonb_build_object('src', 'native', 'mock', p_mock, 'mockApp', false) ELSE '{}'::jsonb END)
+  FROM (VALUES
+    ('{"lat":-6.2000102,"lng":106.8000091,"acc":9.41,"alt":31.2,"ts":1,"at":1000}'::jsonb),
+    ('{"lat":-6.2000081,"lng":106.8000123,"acc":7.93,"alt":30.8,"ts":2,"at":2400}'::jsonb),
+    ('{"lat":-6.2000064,"lng":106.8000140,"acc":8.12,"alt":31.0,"ts":3,"at":3900}'::jsonb)) v(s);
+$$;
+GRANT EXECUTE ON FUNCTION t_check(text, boolean), t_raises(text, text), t_as(uuid), t_real(boolean, boolean) TO anon;
+
+-- t_real() carrying a server challenge (026), as the web page sends it.
+CREATE OR REPLACE FUNCTION t_web(p_nonce text, p_native boolean DEFAULT false) RETURNS jsonb LANGUAGE sql AS $$
+  SELECT jsonb_agg(s || jsonb_build_object('nonce', p_nonce) || CASE WHEN p_native THEN '{"src":"native","mock":false,"mockApp":false}'::jsonb ELSE '{}'::jsonb END)
+  FROM jsonb_array_elements(t_real()) s;
+$$;
+-- The same readings as the Android app signs them (026). p_flags is
+-- "mock|mockApp|emulator|rooted|virtual". SECURITY DEFINER: pgcrypto lives in
+-- the extensions schema, which anon can't use.
+CREATE OR REPLACE FUNCTION t_signed(p_nonce text, p_key text, p_flags text DEFAULT '0|0|0|0|0', p_tamper boolean DEFAULT false)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path = public, extensions AS $$
+  SELECT jsonb_agg(s || jsonb_build_object('src', 'native', 'mock', false, 'mockApp', false, 'nonce', p_nonce,
+      'att', att, 'kid', 'k1',
+      'sig', CASE WHEN p_tamper THEN repeat('0', 64) ELSE encode(hmac(att, p_key, 'sha256'), 'hex') END))
+  FROM (
+    SELECT s, concat_ws('|', 'v1', p_nonce, s->>'lat', s->>'lng', s->>'acc', s->>'ts', p_flags) AS att
+    FROM jsonb_array_elements(t_real()) s
+  ) x;
+$$;
+GRANT EXECUTE ON FUNCTION t_web(text, boolean), t_signed(text, text, text, boolean) TO anon;
+
+-- ── fixtures ───────────────────────────────────────────────────────────────
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon;
+INSERT INTO users (id, username, full_name, role, active, approval_status) VALUES
+  ('00000000-0000-0000-0000-0000000000a1', 'inst', 'Installer A', 'installer', true, 'approved'),
+  ('00000000-0000-0000-0000-0000000000b1', 'sales1', 'Sales One', 'sales', true, 'approved');
+UPDATE activity_categories SET requires_evidence = false, requires_personnel = false, requires_gps = true;
+INSERT INTO projects (id, code, name, status, latitude, longitude)
+  VALUES ('00000000-0000-0000-0000-0000000000f1', 'P1', 'Proj', 'active', -6.2, 106.8);
+INSERT INTO activities (id, request_number, project_id, category_id, title, scheduled_date, status)
+SELECT ('00000000-0000-0000-0000-0000000000' || lpad(g::text, 2, '0'))::uuid, 'R' || g, '00000000-0000-0000-0000-0000000000f1',
+       (SELECT id FROM activity_categories ORDER BY sort_order LIMIT 1), 'T' || g, current_date,
+       CASE WHEN g <= 10 THEN 'in_progress' ELSE 'scheduled' END
+FROM generate_series(1, 16) g;
+UPDATE platform_settings SET require_native_app = false;
+
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+
+-- ── 023/024: Fake GPS at completion ────────────────────────────────────────
+SELECT t_check('real GPS series completes',
+  (iwm_complete_activity('00000000-0000-0000-0000-000000000001', -6.2000081, 106.8000123, 7.93, t_real()) ->> 'blocked')::boolean = false);
+SELECT t_check('frozen high-precision readings are blocked as suspected_mock',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000002', -6.2, 106.8, 5,
+    '[{"lat":-6.2,"lng":106.8,"acc":5,"alt":null,"ts":1,"at":1000},{"lat":-6.2,"lng":106.8,"acc":5,"alt":null,"ts":1,"at":2500},{"lat":-6.2,"lng":106.8,"acc":5,"alt":null,"ts":1,"at":4000}]')
+  ->> 'validation_status' = 'suspected_mock');
+SELECT t_check('0 m accuracy is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000003', -6.2, 106.8, 0, '[{"lat":-6.2,"lng":106.8,"acc":0,"alt":1,"ts":1,"at":1}]')
+  ->> 'validation_status' = 'suspected_mock');
+SELECT t_check('a 1 km jump between readings is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000004', -6.2, 106.8, 8,
+    '[{"lat":-6.209,"lng":106.8,"acc":8.3,"alt":12,"ts":1,"at":1000},{"lat":-6.2,"lng":106.8,"acc":8.1,"alt":12,"ts":2,"at":2000}]')
+  ->> 'validation_status' = 'suspected_mock');
+SELECT t_check('no readings at all is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000005', -6.2, 106.8, 8, NULL) ->> 'validation_status' = 'suspected_mock');
+SELECT t_check('Android-reported mock location is blocked even with natural drift',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000006', -6.2000081, 106.8000123, 7.93, t_real(true, true))
+  -> 'signals' ? 'mock_provider');
+SELECT t_check('outside the site radius is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000007', -6.3, 106.8, 7.93,
+    '[{"lat":-6.3000102,"lng":106.8000091,"acc":9.41,"alt":31.2,"ts":1,"at":1000},{"lat":-6.3000081,"lng":106.8000123,"acc":7.93,"alt":30.8,"ts":2,"at":2400},{"lat":-6.3000064,"lng":106.8000140,"acc":8.12,"alt":31.0,"ts":3,"at":3900}]')
+  ->> 'validation_status' = 'outside_radius');
+UPDATE activities SET gps_validation_status = NULL WHERE id = '00000000-0000-0000-0000-000000000001';
+SELECT t_check('installer cannot edit the GPS verdict (RLS: no rows changed)',
+  (SELECT gps_validation_status = 'valid' FROM activities WHERE id = '00000000-0000-0000-0000-000000000001'));
+SELECT t_as('00000000-0000-0000-0000-000000000001'); -- seeded admin
+SELECT t_raises('even an admin cannot edit the GPS verdict by hand',
+  $q$ UPDATE activities SET gps_validation_status = NULL WHERE id = '00000000-0000-0000-0000-000000000001' $q$);
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+
+-- ── 025: GPS check-in at start ─────────────────────────────────────────────
+SELECT t_raises('installer cannot skip the check-in with the old status call',
+  $q$ SELECT iwm_set_activity_status('00000000-0000-0000-0000-000000000011', 'in_progress') $q$);
+SELECT t_check('start without being on site is blocked',
+  iwm_start_activity('00000000-0000-0000-0000-000000000012', -6.3, 106.8, 7.9, t_real()) ->> 'blocked' = 'true');
+SELECT t_check('start with fake GPS is blocked',
+  iwm_start_activity('00000000-0000-0000-0000-000000000013', -6.2, 106.8, 7.9, t_real(true, true)) ->> 'validation_status' = 'suspected_mock');
+SELECT t_check('start on site with real GPS works',
+  (iwm_start_activity('00000000-0000-0000-0000-000000000014', -6.2000081, 106.8000123, 7.93, t_real()) ->> 'blocked')::boolean = false);
+RESET ROLE;
+SELECT t_check('the check-in is recorded on the activity',
+  (SELECT status = 'in_progress' AND started_at IS NOT NULL AND start_distance_m < 50 FROM activities WHERE id = '00000000-0000-0000-0000-000000000014'));
+SELECT t_check('blocked attempts are kept in the GPS log',
+  (SELECT count(*) >= 6 FROM activity_gps_events WHERE validation_status = 'suspected_mock'));
+
+-- ── 024: "require the Android app" ─────────────────────────────────────────
+UPDATE platform_settings SET require_native_app = true;
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT t_check('with the app required, a browser completion is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000008', -6.2000081, 106.8000123, 7.93, t_real()) -> 'signals' ? 'web_browser');
+SELECT t_check('with the app required, the app still completes',
+  (iwm_complete_activity('00000000-0000-0000-0000-000000000009', -6.2000081, 106.8000123, 7.93, t_real(true, false)) ->> 'blocked')::boolean = false);
+RESET ROLE;
+UPDATE platform_settings SET require_native_app = false;
+
+-- ── 022: role boundaries ───────────────────────────────────────────────────
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT t_raises('installer cannot cancel an activity',
+  $q$ SELECT iwm_set_activity_status('00000000-0000-0000-0000-000000000010', 'cancelled') $q$);
+INSERT INTO activity_personnel (activity_id, name) VALUES ('00000000-0000-0000-0000-000000000010', 'Helper');
+SELECT t_check('installer-added personnel updates personnel_count',
+  (SELECT personnel_count = 1 FROM activities WHERE id = '00000000-0000-0000-0000-000000000010'));
+SELECT t_check('installer can see the user directory', (SELECT count(*) > 1 FROM users));
+
+SELECT t_as('00000000-0000-0000-0000-0000000000b1');
+SELECT t_raises('sales cannot start an activity',
+  $q$ SELECT iwm_start_activity('00000000-0000-0000-0000-000000000015', -6.2000081, 106.8000123, 7.93, t_real()) $q$);
+SELECT t_raises('sales cannot add personnel',
+  $q$ INSERT INTO activity_personnel (activity_id, name) VALUES ('00000000-0000-0000-0000-000000000010', 'X') $q$);
+SELECT t_check('sales sees only their own user row', (SELECT count(*) = 1 FROM users));
+SELECT t_check('sales cannot read password reset requests', (SELECT count(*) = 0 FROM password_reset_requests));
+RESET ROLE;
+
+-- ── 026: server challenge + readings signed by the Android app ─────────────
+INSERT INTO activities (id, request_number, project_id, category_id, title, scheduled_date, status)
+SELECT ('00000000-0000-0000-0000-0000000002' || lpad(g::text, 2, '0'))::uuid, 'S' || g, '00000000-0000-0000-0000-0000000000f1',
+       (SELECT id FROM activity_categories ORDER BY sort_order LIMIT 1), 'U' || g, current_date, 'in_progress'
+FROM generate_series(1, 20) g;
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000001'); -- seeded admin
+SELECT iwm_gps_challenge() ->> 'nonce' AS n_admin \gset
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT iwm_gps_challenge() ->> 'nonce' AS n1 \gset
+SELECT iwm_gps_challenge() ->> 'nonce' AS n_old \gset
+RESET ROLE;
+UPDATE gps_challenges SET created_at = now() - interval '20 minutes' WHERE nonce = :'n_old';
+SET ROLE anon;
+
+SELECT t_check('a fresh challenged reading completes',
+  (iwm_complete_activity('00000000-0000-0000-0000-000000000201', -6.2000081, 106.8000123, 7.93, t_web(:'n1')) ->> 'blocked')::boolean = false);
+SELECT t_check('a reading challenged 20 minutes ago is blocked as stale',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000202', -6.2000081, 106.8000123, 7.93, t_web(:'n_old')) -> 'signals' ? 'stale_reading');
+SELECT t_check('another account''s challenge is refused',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000203', -6.2000081, 106.8000123, 7.93, t_web(:'n_admin')) -> 'signals' ? 'bad_challenge');
+SELECT t_check('an invented challenge is refused',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000204', -6.2000081, 106.8000123, 7.93, t_web(gen_random_uuid()::text)) -> 'signals' ? 'bad_challenge');
+SELECT t_check('without an app key installed, no challenge is only flagged (rollout)',
+  (SELECT (r ->> 'blocked')::boolean = false AND r -> 'risk_flags' ? 'no_challenge'
+   FROM (SELECT iwm_complete_activity('00000000-0000-0000-0000-000000000205', -6.2000081, 106.8000123, 7.93, t_real()) r) x));
+SELECT t_raises('the app signing keys can''t be tested through the API',
+  $q$ SELECT iwm_attestation_valid('x', 'y', 'k1') $q$);
+
+RESET ROLE;
+INSERT INTO app_attestation_keys (key_id, secret) VALUES ('k1', repeat('s3cr3t-', 6));
+-- Payload and signature produced by android/…/Attestation.java itself, with
+-- the payload built exactly as MainActivity.toJson() builds it.
+SELECT t_check('a reading signed by the app''s own Java code verifies',
+  iwm_attestation_valid('v1|0f8fad5b-d9cb-469f-a165-70867728950e|-6.2000081|106.8000123|7.93|1759132800123|0|0|0|0|0',
+                        '23c7f3427bf9df63b4d8cc2019a6cbfc281f5c0b2861e63d16f4e0e6acddbafa', 'k1'));
+UPDATE platform_settings SET require_native_app = true;
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT iwm_gps_challenge() ->> 'nonce' AS n2 \gset
+SELECT iwm_gps_challenge() ->> 'nonce' AS n3 \gset
+SELECT t_check('the app signing keys are unreadable from the API', (SELECT count(*) = 0 FROM app_attestation_keys));
+SELECT t_check('with the app required, a correctly signed app reading completes',
+  (iwm_complete_activity('00000000-0000-0000-0000-000000000206', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6))) ->> 'blocked')::boolean = false);
+SELECT t_check('a page pretending to be the app without a signature counts as a browser',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000207', -6.2000081, 106.8000123, 7.93, t_web(:'n2', true)) -> 'signals' ? 'web_browser');
+SELECT t_check('a forged signature is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000208', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), p_tamper => true)) -> 'signals' ? 'bad_signature');
+SELECT t_check('a signature made with another key is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000209', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('wrong-k', 6))) -> 'signals' ? 'bad_signature');
+SELECT t_check('a signed reading replayed under a new challenge is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000210', -6.2000081, 106.8000123, 7.93,
+    (SELECT jsonb_agg(s || jsonb_build_object('nonce', :'n3')) FROM jsonb_array_elements(t_signed(:'n2', repeat('s3cr3t-', 6))) s)) -> 'signals' ? 'bad_signature');
+SELECT t_check('a signed reading moved to another position is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000211', -6.2000081, 106.8000123, 7.93,
+    (SELECT jsonb_agg(s || '{"lat":-6.2100000}'::jsonb) FROM jsonb_array_elements(t_signed(:'n2', repeat('s3cr3t-', 6))) s)) -> 'signals' ? 'bad_signature');
+SELECT t_check('the app on an emulator is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000212', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), '0|0|1|0|0')) -> 'signals' ? 'emulator');
+SELECT t_check('the app inside a cloning app is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000213', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), '0|0|0|0|1')) -> 'signals' ? 'virtual_env');
+SELECT t_check('Android''s signed mock-location verdict blocks',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000214', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), '1|0|0|0|0')) -> 'signals' ? 'mock_provider');
+SELECT t_check('a rooted phone is blocked when the app is required',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000215', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), '0|0|0|1|0')) -> 'signals' ? 'rooted');
+SELECT t_check('once a key is installed, a reading without a challenge is blocked',
+  iwm_complete_activity('00000000-0000-0000-0000-000000000216', -6.2000081, 106.8000123, 7.93, t_real(true, false)) -> 'signals' ? 'no_challenge');
+SELECT t_check('start with a signed on-site reading works',
+  (iwm_start_activity('00000000-0000-0000-0000-000000000016', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6))) ->> 'blocked')::boolean = false);
+RESET ROLE;
+UPDATE platform_settings SET require_native_app = false;
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT t_check('a rooted phone is only flagged when the app is not required',
+  (SELECT (r ->> 'blocked')::boolean = false AND r -> 'risk_flags' ? 'rooted'
+   FROM (SELECT iwm_complete_activity('00000000-0000-0000-0000-000000000217', -6.2000081, 106.8000123, 7.93, t_signed(:'n2', repeat('s3cr3t-', 6), '0|0|0|1|0')) r) x));
+RESET ROLE;
+DELETE FROM app_attestation_keys;
+
+-- ── 027: admin settings checked live; bot token admin-only ─────────────────
+INSERT INTO users (id, username, full_name, role, active, approval_status) VALUES
+  ('00000000-0000-0000-0000-0000000000c1', 'sup1', 'Supervisor One', 'supervisor', true, 'approved'),
+  ('00000000-0000-0000-0000-0000000000d1', 'exadmin', 'Former Admin', 'admin', false, 'approved');
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000001'); -- seeded admin
+INSERT INTO activity_categories (code, name) VALUES ('T_OK', 'Test by admin');
+SELECT t_check('an active admin can add a category', (SELECT count(*) = 1 FROM activity_categories WHERE code = 'T_OK'));
+-- A token still saying "admin" for an account that is now an installer, or
+-- an admin account that has been deactivated.
+SELECT set_config('request.jwt.claims', '{"user_id":"00000000-0000-0000-0000-0000000000a1","user_role":"admin"}', false);
+SELECT t_raises('a demoted admin''s old token can''t add a category',
+  $q$ INSERT INTO activity_categories (code, name) VALUES ('T_DEMOTED', 'x') $q$);
+SELECT set_config('request.jwt.claims', '{"user_id":"00000000-0000-0000-0000-0000000000d1","user_role":"admin"}', false);
+SELECT t_raises('a deactivated admin''s old token can''t change platform settings',
+  $q$ DO $d$ BEGIN
+       UPDATE platform_settings SET require_native_app = true;
+       IF NOT FOUND THEN RAISE EXCEPTION 'no rows'; END IF;
+     END $d$ $q$);
+SELECT t_as('00000000-0000-0000-0000-0000000000c1');
+SELECT t_check('a supervisor can''t read the Telegram bot token', (SELECT count(*) = 0 FROM notification_settings));
+SELECT t_as('00000000-0000-0000-0000-000000000001');
+SELECT t_check('an admin can read the Telegram bot settings', (SELECT count(*) = 1 FROM notification_settings));
+RESET ROLE;
+
+-- ── result ─────────────────────────────────────────────────────────────────
+DO $$
+BEGIN
+  IF COALESCE(NULLIF(current_setting('t.failed', true), ''), '0')::int > 0 THEN
+    RAISE EXCEPTION '% database test(s) failed', current_setting('t.failed', true);
+  END IF;
+  RAISE NOTICE '✓ all database tests passed';
+END $$;

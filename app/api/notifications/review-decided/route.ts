@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSessionUser } from '@/lib/server-auth';
-import { sendTelegramMessages } from '@/lib/telegram';
+import { sendTelegramMessages, esc } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
   const icon = review.status === 'approved' ? '✅' : '❌';
   const text =
     `${icon} <b>Form Review ${review.status === 'approved' ? 'Approved' : 'Rejected'}</b>\n` +
-    `${activity.title} (${activity.request_number})` +
-    (review.notes ? `\nNote: ${review.notes}` : '');
+    `${esc(activity.title)} (${esc(activity.request_number)})` +
+    (review.notes ? `\nNote: ${esc(review.notes)}` : '');
 
   await sendTelegramMessages(chatIds, text);
   return NextResponse.json({ sent: chatIds.length });

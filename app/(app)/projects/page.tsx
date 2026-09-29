@@ -7,11 +7,12 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
 import { PROJECT_STATUSES } from '@/lib/constants';
-import { formatDate, errorMessage } from '@/lib/utils';
+import { formatDate, errorMessage, ilikeAny } from '@/lib/utils';
+import { useSessionState, useDebouncedValue } from '@/lib/useListState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
-import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
+import { SkeletonList, ErrorState, EmptyState } from '@/components/shared/States';
 import { ProjectFormModal } from './_components/ProjectFormModal';
 import type { DictKey } from '@/lib/i18n';
 
@@ -23,9 +24,10 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, { total: number; completed: number }>>({});
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [page, setPage] = useSessionState('projects.page', 1);
+  const [search, setSearch] = useSessionState('projects.search', '');
+  const [status, setStatus] = useSessionState('projects.status', '');
+  const debouncedSearch = useDebouncedValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -40,13 +42,15 @@ export default function ProjectsPage() {
         .order('created_at', { ascending: false })
         .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
-      if (search.trim()) query = query.or(`name.ilike.%${search.trim()}%,code.ilike.%${search.trim()}%,customer_name.ilike.%${search.trim()}%`);
+      const searchFilter = ilikeAny(['name', 'code', 'customer_name'], debouncedSearch);
+      if (searchFilter) query = query.or(searchFilter);
       if (status) query = query.eq('status', status);
 
       const { data, error: err, count } = await query;
       if (err) throw err;
       setProjects((data as Project[]) ?? []);
       setTotal(count ?? 0);
+      if (page > 1 && (data ?? []).length === 0 && (count ?? 0) > 0) setPage(1);
 
       const ids = ((data as Project[]) ?? []).map(p => p.id);
       if (ids.length > 0) {
@@ -62,14 +66,13 @@ export default function ProjectsPage() {
         setCounts({});
       }
     } catch (e) {
-      setError(errorMessage(e, 'Failed to load projects.'));
+      setError(errorMessage(e, t('common.failedToLoad')));
     } finally {
       setLoading(false);
     }
-  }, [page, search, status]);
+  }, [page, debouncedSearch, status, t, setPage]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, status]);
 
   const canCreate = user && ['admin', 'supervisor'].includes(user.role);
 
@@ -88,19 +91,19 @@ export default function ProjectsPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder={t('projects.searchPlaceholder')} /></div>
-        <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
+        <div className="flex-1"><SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder={t('projects.searchPlaceholder')} /></div>
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
           <option value="">{t('common.allStatuses')}</option>
           {PROJECT_STATUSES.map(s => <option key={s} value={s}>{t(`status.${s}` as DictKey)}</option>)}
         </select>
-        <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+        <button onClick={load} title={t('common.refresh')} aria-label={t('common.refresh')} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card overflow-hidden">
         {loading ? (
-          <LoadingState />
+          <SkeletonList rows={6} />
         ) : error ? (
           <ErrorState message={error} onRetry={load} />
         ) : projects.length === 0 ? (

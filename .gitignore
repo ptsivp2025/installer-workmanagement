@@ -53,3 +53,7 @@ Thumbs.db
 # Artefak kompilasi Python (mis. dari skrip skill)
 __pycache__/
 *.pyc
+
+# Project archives (a full copy of the source): never into the repo, which
+# is public. Keep them outside the project folder or leave them untracked.
+*.zip

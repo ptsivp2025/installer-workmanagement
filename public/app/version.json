@@ -1,0 +1,7 @@
+{
+  "versionCode": 5,
+  "versionName": "1.4",
+  "apk": "/app/installer-wm.apk",
+  "notes": "Absen GPS saat Mulai kegiatan; kunci aplikasi baru (pasang ulang sekali).",
+  "required": false
+}

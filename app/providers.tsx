@@ -1,13 +1,19 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { getSession, verifySessionFromCookie, refreshDbTokenIfNeeded, type SessionUserProfile } from '@/lib/auth';
 import { getStoredLang, setStoredLang, translate, type Lang, type DictKey } from '@/lib/i18n';
 import { applyThemeColor } from '@/lib/theme';
+import { setDateLocale } from '@/lib/utils';
 
 interface AuthContextValue {
   user: SessionUserProfile | null;
   loading: boolean;
+  /** The login couldn't be checked because the server didn't answer (no
+   * signal). Not the same as logged out: the app layout shows a "no
+   * connection" screen and keeps retrying instead of sending the user to
+   * /login to type a password they don't need. */
+  unreachable: boolean;
   refresh: () => Promise<void>;
   /** Sets the in-memory profile immediately after login — sessionStorage
    * alone doesn't update this context's React state, which used to leave
@@ -17,38 +23,73 @@ interface AuthContextValue {
   setUserProfile: (profile: SessionUserProfile | null) => void;
 }
 
-const AuthContext = createContext<AuthContextValue>({ user: null, loading: true, refresh: async () => {}, setUserProfile: () => {} });
+const AuthContext = createContext<AuthContextValue>({ user: null, loading: true, unreachable: false, refresh: async () => {}, setUserProfile: () => {} });
 
 export function useAuth(): AuthContextValue {
   return useContext(AuthContext);
 }
 
+// A field signal often drops for a second or two; retry quietly before
+// showing anything.
+const VERIFY_RETRY_DELAYS_MS = [1500, 3000];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unreachable, setUnreachable] = useState(false);
+  const verifying = useRef(false);
 
   const refresh = useCallback(async () => {
     const cached = getSession();
     if (cached) {
       setUser(cached);
+      setUnreachable(false);
       setLoading(false);
       return;
     }
-    const fromCookie = await verifySessionFromCookie();
-    setUser(fromCookie);
-    setLoading(false);
+    if (verifying.current) return; // a slow network must not stack retries
+    verifying.current = true;
+    try {
+      let result = await verifySessionFromCookie();
+      for (const delay of VERIFY_RETRY_DELAYS_MS) {
+        if (result !== 'unreachable') break;
+        await new Promise(r => setTimeout(r, delay));
+        result = await verifySessionFromCookie();
+      }
+      if (result === 'unreachable') {
+        setUnreachable(true);
+      } else {
+        setUser(result);
+        setUnreachable(false);
+      }
+    } finally {
+      verifying.current = false;
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  // Signal back: pick the session up again without the user doing anything.
+  useEffect(() => {
+    if (!unreachable) return;
+    const retry = () => { refresh(); };
+    window.addEventListener('online', retry);
+    const interval = setInterval(retry, 15000);
+    return () => {
+      window.removeEventListener('online', retry);
+      clearInterval(interval);
+    };
+  }, [unreachable, refresh]);
+
   useEffect(() => {
     const interval = setInterval(() => refreshDbTokenIfNeeded(), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, refresh, setUserProfile: setUser }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, unreachable, refresh, setUserProfile: setUser }}>{children}</AuthContext.Provider>;
 }
 
 interface LanguageContextValue {
@@ -80,6 +121,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const t = useCallback((key: DictKey, vars?: Record<string, string | number>) => translate(lang, key, vars), [lang]);
+  setDateLocale(lang);
 
   return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
 }

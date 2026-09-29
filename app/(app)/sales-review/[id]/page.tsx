@@ -1,19 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Star, Loader2 } from 'lucide-react';
+import { Star, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { SalesReview } from '@/lib/types';
 import { formatDate, formatDateTime, errorMessage } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
+import { BackButton } from '@/components/shared/BackButton';
 
 export default function SalesReviewDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [review, setReview] = useState<SalesReview | null>(null);
@@ -67,9 +67,7 @@ export default function SalesReviewDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button onClick={() => router.push('/sales-review')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> {t('nav.salesReview')}
-      </button>
+      <BackButton fallbackHref="/sales-review" />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
         <div className="flex items-start justify-between gap-3">

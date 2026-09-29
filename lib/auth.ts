@@ -38,7 +38,13 @@ export function getSession(): SessionUserProfile | null {
     const savedTime = sessionStorage.getItem(SS_TIME);
     if (!saved) return null;
     if (savedTime && Date.now() - parseInt(savedTime, 10) > SESSION_DURATION_MS) {
-      clearSession();
+      // Only this tab's cached copy is stale; the login itself (httpOnly
+      // cookie) can still be valid. Drop the copy so the caller re-checks it
+      // with the server. Calling clearSession() here used to log the user
+      // out of the server too, the moment an app left open overnight was
+      // reloaded.
+      sessionStorage.removeItem(SS_USER);
+      sessionStorage.removeItem(SS_TIME);
       return null;
     }
     return JSON.parse(saved) as SessionUserProfile;
@@ -47,11 +53,17 @@ export function getSession(): SessionUserProfile | null {
   }
 }
 
-/** Used on app load when sessionStorage is empty (page refresh / new tab). */
-export async function verifySessionFromCookie(): Promise<SessionUserProfile | null> {
+/**
+ * Used on app load when sessionStorage is empty (page refresh / new tab).
+ * null = the server says there is no valid login. 'unreachable' = no answer
+ * at all (no signal, server error), which says nothing about the login and
+ * must not be treated as logged out.
+ */
+export async function verifySessionFromCookie(): Promise<SessionUserProfile | null | 'unreachable'> {
   try {
     const res = await fetch('/api/auth/session', { credentials: 'include' });
-    if (!res.ok) return null;
+    if (res.status === 401) return null;
+    if (!res.ok) return 'unreachable';
     const { user, db_token } = await res.json();
     if (user) {
       setSession(user);
@@ -59,7 +71,7 @@ export async function verifySessionFromCookie(): Promise<SessionUserProfile | nu
     }
     return user ?? null;
   } catch {
-    return null;
+    return 'unreachable';
   }
 }
 

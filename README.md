@@ -65,7 +65,7 @@ Never commit `.env.local`. Never put `SUPABASE_SERVICE_ROLE_KEY` or
 
 1. Create a new project at supabase.com.
 2. Open **SQL Editor**.
-3. Run each file in `supabase/migrations/` **in order** (001 → 021), each as
+3. Run each file in `supabase/migrations/` **in order** (001 → 026), each as
    its own query:
    - `001_core_schema.sql` — users/sessions/credentials, JWT claim helpers
    - `002_business_schema.sql` — projects, activity_categories, activities,
@@ -131,7 +131,7 @@ migrations against each one.
 ## 8. First Setup Checklist
 
 - [ ] Supabase project created
-- [ ] Migrations 001–021 applied in order
+- [ ] Migrations 001–026 applied in order
 - [ ] RLS confirmed enabled on all tables
 - [ ] `activity-evidence` storage bucket confirmed private
 - [ ] `.env.local` filled in and app runs locally (`npm run dev`)
@@ -256,3 +256,64 @@ PTS Database, Tech Note, Learning Center, or User Management / PIC Brand
 admin screens. User accounts are provisioned directly in Supabase (SQL
 Editor) rather than through an in-app screen — there simply aren't enough
 of them, on a platform this size, to justify one.
+
+## Android app (APK)
+
+`android/` wraps the web app in a small native Android app. Its main job:
+Android tells the app when a GPS reading is fake (mock location), which no
+browser can see. Migration 024 blocks those completions server-side.
+
+Build (Ubuntu, no Android Studio/Gradle needed):
+
+```bash
+sudo apt install android-sdk-platform-23 aapt zipalign apksigner dalvik-exchange
+VERSION=1.0 android/build.sh   # → android/build/installer-wm.apk (https://installer-workmanagement.vercel.app)
+```
+
+Override with `APP_URL=https://…`; `APP_URL=` (empty) makes the app ask on first launch.
+Signing key: `android/release.keystore` + `android/keystore.password` are
+**not in git** (gitignored; a public copy of this repo exists). Keep both
+backed up somewhere private: updates only install over an existing app
+when they're signed with the same key. `build.sh` refuses to run without
+the keystore rather than quietly making a new one (`NEW_KEYSTORE=1` only for
+a deliberate new key). Raise `android:versionCode` in `AndroidManifest.xml`
+for every new release.
+
+GPS signing key (1.5+, migration 026): `android/gps.key`, also gitignored and
+also worth a private backup. `build.sh` creates it on the first build and
+writes the matching SQL to `android/build/gps-key.sql`. With it the app signs
+every GPS reading (together with a one-off challenge from the server and its
+emulator / root / cloning-app checks), so a web page pretending to be the app
+can't pass as it.
+
+Closing the browser route to Fake GPS, in this order:
+
+1. Build and publish the app (below) with `"required": true` in
+   `public/app/version.json`, so every phone updates on its next launch.
+2. Once the installers are on the new version, run `android/build/gps-key.sql`
+   once in the Supabase SQL Editor. From then on a reading only counts as
+   "from the app" if its signature checks out (unsigned readings from an old
+   app count as a browser, and requests without a server challenge are refused).
+3. Turn on **Admin Panel → Settings → Require the Android app for
+   GPS-verified jobs**. Browser completions and rooted phones are then refused.
+
+### Releasing an app update
+
+1. Bump `android:versionCode` (+1) and `android:versionName` in `android/AndroidManifest.xml`.
+2. `NOTES="What changed" android/build.sh`. This also writes `public/app/installer-wm.apk`
+   and `public/app/version.json`.
+3. Deploy the web app. Every installed copy (1.3+) offers the update on its next launch,
+   or via **Menu → Cek Update Aplikasi**. Set `"required": true` in version.json to
+   make an update mandatory.
+
+## Tests
+
+```bash
+npm test          # unit tests (lib/: filters, dates, errors, Excel writer)
+npm run test:db   # applies every migration to a throwaway local PostgreSQL
+                  # and checks roles/RLS, Fake GPS blocking and GPS check-in
+```
+
+`test:db` needs PostgreSQL binaries (`apt install postgresql`). It also covers
+the server challenge and app signatures (026), including a payload signed by
+`android/…/Attestation.java` itself, so the Java and SQL sides can't drift.

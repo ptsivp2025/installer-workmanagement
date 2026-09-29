@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { getSessionUser } from '@/lib/server-auth';
+import { getSessionUser, endOtherSessions } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,5 +26,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     .eq('user_id', params.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // A reset usually means the old password is lost or known to someone
+  // else. Sessions last up to a year in the Android app, so end them:
+  // whoever held the old password is out now, not months from now.
+  await endOtherSessions(request, params.id);
+  // And the "forgot password" request that prompted this is answered.
+  await supabase.from('password_reset_requests')
+    .update({ status: 'resolved', resolved_by: caller.id, resolved_at: new Date().toISOString() })
+    .eq('user_id', params.id).eq('status', 'pending');
+
   return NextResponse.json({ success: true });
 }

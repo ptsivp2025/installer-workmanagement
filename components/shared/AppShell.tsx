@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star, MoreHorizontal, UserRound, Inbox, Search,
+  LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, LogOut, Menu, X, Star, MoreHorizontal, UserRound, Inbox, Search, BarChart3, CloudOff, Download,
 } from 'lucide-react';
 import { useAuth, useLanguage } from '@/app/providers';
 import { clearSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useNavBadges, type NavBadgeCounts } from '@/lib/notification-badges';
+import { useOnlineStatus } from '@/lib/useOnlineStatus';
+import { nativeAppVersion, canCheckAppUpdate, checkAppUpdate } from '@/lib/native';
 import { LanguageToggle } from './LanguageToggle';
 import { ProfileModal } from './ProfileModal';
 import { GlobalSearchModal } from './GlobalSearchModal';
@@ -28,7 +30,7 @@ const STAFF_NAV: NavItem[] = [
   { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
   { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock },
   { href: '/form-review', labelKey: 'nav.formReview', icon: ClipboardCheck, badgeKey: 'formReview' },
-  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: FolderKanban },
+  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: BarChart3 },
   { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star },
 ];
 
@@ -51,14 +53,20 @@ const INSTALLER_NAV: NavItem[] = [
 
 // A Sales Division account checks progress, requests new work, and rates
 // finished work on its own division's projects (RLS-scoped) — scheduling
-// and internal QC (Form Review) aren't theirs to touch.
+// and internal QC (Form Review) aren't theirs to touch. Ordered by how
+// often it's needed: only the first BOTTOM_TABS fit the phone tab bar, the
+// rest sit under "More".
 const SALES_NAV: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
   { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban },
-  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: FolderKanban },
   { href: '/project-requests', labelKey: 'nav.projectRequests', icon: Inbox },
   { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star, badgeKey: 'salesReview' },
+  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: BarChart3 },
 ];
+
+// Four tabs + "More" is what still fits a 360px-wide phone with readable
+// labels; five + "More" squeezed "Permintaan Proyek" into an unreadable wrap.
+const BOTTOM_TABS = 4;
 
 const ADMIN_NAV: NavItem = { href: '#admin', labelKey: 'nav.adminPanel', icon: Settings, modal: true, badgeKey: 'registrations' };
 
@@ -114,6 +122,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const badges = useNavBadges(user);
+  // A link inside the Admin Panel (e.g. an audit-log entry) navigates the
+  // page underneath; close the panel so the user actually sees it.
+  useEffect(() => { setAdminOpen(false); }, [pathname]);
+  const online = useOnlineStatus();
+  // Inside the Android app: its version, and a manual "check for update"
+  // (the app also checks by itself on every launch).
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => { if (canCheckAppUpdate()) setAppVersion(nativeAppVersion()); }, []);
 
   const items =
     user?.role === 'sales' ? SALES_NAV :
@@ -128,14 +144,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // itself runs 5 bottom tabs). A longer staff/admin list stays drawer-only
   // (too many items for a bottom bar to stay readable).
   const showBottomNav = items.length <= 5;
+  const bottomItems = items.slice(0, BOTTOM_TABS);
+  const overflowBadges = items.slice(BOTTOM_TABS).reduce((n, i) => n + (i.badgeKey ? badges[i.badgeKey] : 0), 0);
+  // Staff roles have no tab bar — without this, a pending registration or
+  // review was invisible on a phone until someone happened to open the menu.
+  const anyBadge = Object.values(badges).some(n => n > 0);
 
   return (
     <div className="min-h-screen flex">
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 inset-x-0 h-14 bg-white border-b border-slate-200 z-40 flex items-center justify-between px-4">
-        <button onClick={() => setMobileOpen(true)} className="text-slate-600"><Menu className="h-5 w-5" /></button>
+        <button onClick={() => setMobileOpen(true)} aria-label={t('nav.more')} className="relative text-slate-600 p-1 -m-1">
+          <Menu className="h-5 w-5" />{anyBadge && <NavDot count={1} />}
+        </button>
         <span className="font-semibold text-slate-900 text-sm truncate max-w-[70%]">{brand?.platform_name ?? 'Installer Work Management'}</span>
-        <div className="w-5" />
+        <button onClick={() => setSearchOpen(true)} aria-label={t('search.trigger')} className="text-slate-600 p-1 -m-1"><Search className="h-5 w-5" /></button>
       </div>
 
       {/* Sidebar */}
@@ -146,9 +169,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-lg object-contain shrink-0" />
             ) : (
-              <div className="h-9 w-9 rounded-lg bg-brand-600 text-white flex items-center justify-center text-sm font-bold shrink-0">
-                {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
-              </div>
+              // Default logo (a worker in a hard hat) until an admin uploads one.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.svg" alt="" className="h-9 w-9 rounded-lg shrink-0" />
             )}
             <div className="min-w-0">
               <p className="font-semibold text-slate-900 text-sm leading-tight truncate">{brand?.platform_name ?? 'Installer Work Management'}</p>
@@ -195,6 +218,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="border-t border-slate-100 p-3 space-y-2">
           <div className="px-2"><LanguageToggle /></div>
+          {appVersion && (
+            <button
+              onClick={() => { setMobileOpen(false); checkAppUpdate(); }}
+              className="w-full flex items-center gap-3 rounded-control px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition"
+            >
+              <Download className="h-4 w-4" />
+              {t('app.checkUpdate')}
+              <span className="ml-auto text-xs text-slate-400">v{appVersion}</span>
+            </button>
+          )}
           {!loading && user && (
             <div className="flex items-center gap-2 px-2 py-2">
               <button
@@ -231,10 +264,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <main className={`flex-1 min-w-0 pt-14 lg:pt-0 ${showBottomNav ? 'pb-16 lg:pb-0' : ''}`}>
         {/* Pinned above every page, not just the Projects list — jumping
             straight to a project from anywhere is the point (spec: a
-            project search "up top", like the reference platform). Sticks
-            just below the fixed mobile header; on desktop there's nothing
-            above it to clear. */}
-        <div className="sticky top-14 lg:top-0 z-30 bg-slate-50/90 backdrop-blur border-b border-slate-100 px-4 sm:px-6 py-2.5">
+            project search "up top", like the reference platform). Desktop
+            only: on a phone the same search is the icon in the top bar, so
+            it doesn't cost a second sticky row of screen height. */}
+        <div className="hidden lg:block sticky top-0 z-30 bg-slate-50/90 backdrop-blur border-b border-slate-100 px-4 sm:px-6 py-2.5">
           <button
             onClick={() => setSearchOpen(true)}
             className="flex items-center gap-2 w-full sm:w-80 rounded-control border border-slate-300 bg-white px-3 py-2 text-sm text-slate-400 hover:border-slate-400 hover:text-slate-500 transition"
@@ -247,12 +280,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* key={pathname} restarts the entrance animation on every
             navigation — without it React reuses the node and the new page
             simply appears. */}
+        {/* Without this, losing signal just looked like every page breaking
+            at once ("Failed to fetch"), with nothing saying why. */}
+        {!online && (
+          <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm px-4 sm:px-6 py-2">
+            <CloudOff className="h-4 w-4 shrink-0" />
+            <span>{t('common.offlineBanner')}</span>
+          </div>
+        )}
         <div key={pathname} className="max-w-7xl mx-auto p-4 sm:p-6 animate-fade-in">{children}</div>
       </main>
 
       {showBottomNav && (
         <nav className="lg:hidden fixed bottom-0 inset-x-0 h-16 bg-white border-t border-slate-200 z-40 flex items-stretch">
-          {items.map(item => {
+          {bottomItems.map(item => {
             const Icon = item.icon;
             const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
             if (item.modal) {
@@ -272,10 +313,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? 'text-brand-600' : 'text-slate-500'}`}
+                className={`flex-1 min-w-0 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${active ? 'text-brand-600' : 'text-slate-500'}`}
               >
                 <span className="relative"><Icon className="h-5 w-5" /><NavDot count={badgeCount} /></span>
-                {t(item.labelKey)}
+                <span className="max-w-full truncate px-1">{t(item.labelKey)}</span>
               </Link>
             );
           })}
@@ -283,7 +324,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileOpen(true)}
             className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-slate-500"
           >
-            <MoreHorizontal className="h-5 w-5" />
+            <span className="relative"><MoreHorizontal className="h-5 w-5" /><NavDot count={overflowBadges} /></span>
             {t('nav.more')}
           </button>
         </nav>

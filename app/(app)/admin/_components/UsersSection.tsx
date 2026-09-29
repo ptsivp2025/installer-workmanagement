@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, Pencil, Power, Loader2, KeyRound, Check, X, UserPlus } from 'lucide-react';
+
+interface ResetRequest { id: string; user_id: string | null; username: string; contact: string | null; created_at: string }
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import { formatDateTime } from '@/lib/utils';
@@ -11,10 +13,14 @@ import { ROLES, POSITIONS } from '@/lib/constants';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
 import { SearchInput } from '@/components/shared/SearchInput';
+import { useDialog } from '@/components/shared/ConfirmDialog';
+import { SearchableSelect } from '@/components/shared/SearchableSelect';
+import { PasswordInput } from '@/components/shared/PasswordInput';
 
 export function UsersSection() {
   const { user: me } = useAuth();
   const { t } = useLanguage();
+  const { prompt: askText, dialog } = useDialog();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,6 +29,7 @@ export function UsersSection() {
   const [editing, setEditing] = useState<AppUser | null>(null);
 
   const [deciding, setDeciding] = useState<string | null>(null);
+  const [resetRequests, setResetRequests] = useState<ResetRequest[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,8 +37,20 @@ export function UsersSection() {
     const { data, error: err } = await supabase.from('users').select('*, sales_divisions(id, name, code)').order('full_name');
     if (err) setError(err.message);
     else setUsers((data as AppUser[]) ?? []);
+    // "Lupa password?" requests (025). Best-effort: absent before the
+    // migration is run, and then the panel simply doesn't show.
+    const { data: reqs } = await supabase.from('password_reset_requests')
+      .select('id, user_id, username, contact, created_at').eq('status', 'pending').order('created_at');
+    setResetRequests((reqs as ResetRequest[]) ?? []);
     setLoading(false);
   }, []);
+
+  async function closeResetRequest(id: string, status: 'resolved' | 'dismissed') {
+    const { error: err } = await supabase.from('password_reset_requests')
+      .update({ status, resolved_by: me?.id ?? null, resolved_at: new Date().toISOString() }).eq('id', id);
+    if (err) { setError(err.message); return; }
+    setResetRequests(rs => rs.filter(r => r.id !== id));
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -47,8 +66,12 @@ export function UsersSection() {
   async function decide(u: AppUser, decision: 'approved' | 'rejected') {
     let rejection_reason: string | null = null;
     if (decision === 'rejected') {
-      if (!confirm(t('adminUsers.rejectConfirm'))) return;
-      rejection_reason = window.prompt(t('adminUsers.rejectReason')) ?? null;
+      const reason = await askText({
+        title: t('adminUsers.rejectConfirm'), message: u.full_name || u.username,
+        label: t('adminUsers.rejectReason'), confirmLabel: t('adminUsers.reject'), danger: true,
+      });
+      if (reason === null) return;
+      rejection_reason = reason || null;
     }
     setDeciding(u.id);
     const res = await fetch(`/api/admin/users/${u.id}/approval`, {
@@ -77,6 +100,43 @@ export function UsersSection() {
           <Plus className="h-4 w-4" /> {t('adminUsers.newUser')}
         </button>
       </div>
+
+      {resetRequests.length > 0 && (
+        <div className="mb-6 rounded-card border border-blue-200 bg-blue-50/60 p-4 animate-slide-down">
+          <div className="flex items-center gap-2 mb-1">
+            <KeyRound className="h-4 w-4 text-blue-600" />
+            <h3 className="font-semibold text-blue-900">{t('adminUsers.resetRequestsTitle')}</h3>
+            <span className="rounded-full bg-blue-600 text-white text-xs font-bold px-2 py-0.5">{resetRequests.length}</span>
+          </div>
+          <p className="text-xs text-blue-700/80 mb-3">{t('adminUsers.resetRequestsHint')}</p>
+          <div className="space-y-2">
+            {resetRequests.map(r => {
+              const u = users.find(x => x.id === r.user_id) ?? null;
+              return (
+                <div key={r.id} className="bg-white rounded-control border border-blue-200 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="font-medium text-slate-900">{u?.full_name ?? r.username} <span className="text-slate-400 font-normal">@{r.username}</span></p>
+                    <p className="text-xs text-slate-500">
+                      {r.contact ? `${r.contact} · ` : ''}{formatDateTime(r.created_at)}
+                      {!u && <span className="text-amber-700"> · {t('adminUsers.unknownUser')}</span>}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {u && (
+                      <button onClick={() => { setEditing(u); setFormOpen(true); }} className="inline-flex items-center gap-1 rounded-control bg-brand-600 text-white text-xs font-medium px-3 py-1.5 hover:bg-brand-700">
+                        <KeyRound className="h-3.5 w-3.5" /> {t('adminUsers.setNewPassword')}
+                      </button>
+                    )}
+                    <button onClick={() => closeResetRequest(r.id, u ? 'resolved' : 'dismissed')} className="inline-flex items-center gap-1 rounded-control border border-slate-300 text-slate-600 text-xs font-medium px-3 py-1.5 hover:bg-slate-50">
+                      {u ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />} {u ? t('adminUsers.markDone') : t('adminUsers.dismiss')}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Self-registrations land here first — nothing they can reach until
           one of these buttons is pressed (migration 018). */}
@@ -189,6 +249,7 @@ export function UsersSection() {
       </div>
 
       <UserFormModal open={formOpen} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); load(); }} user={editing} selfId={me.id} />
+      {dialog}
     </div>
   );
 }
@@ -268,10 +329,12 @@ function UserFormModal({
         {form.role === 'sales' && (
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.salesDivision')}</label>
-            <select value={form.sales_division_id} onChange={e => setForm(f => ({ ...f, sales_division_id: e.target.value }))} className={inputCls}>
-              <option value="">{t('adminUsers.selectDivision')}</option>
-              {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.sales_division_id}
+              onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
+              options={divisions.map(d => ({ value: d.id, label: d.name }))}
+              placeholder={t('adminUsers.selectDivision')}
+            />
             <p className="text-xs text-slate-400 mt-1">{t('adminUsers.salesDivisionHint')}</p>
           </div>
         )}
@@ -295,13 +358,13 @@ function UserFormModal({
         {!user && (
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.password')}</label>
-            <input type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className={inputCls} placeholder={t('adminUsers.minChars')} />
+            <PasswordInput value={form.password} onChange={v => setForm(f => ({ ...f, password: v }))} className={inputCls} placeholder={t('adminUsers.minChars')} />
           </div>
         )}
         {user && (
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5"><KeyRound className="h-3.5 w-3.5" /> {t('adminUsers.resetPassword')}</label>
-            <input type="password" value={form.new_password} onChange={e => setForm(f => ({ ...f, new_password: e.target.value }))} className={inputCls} placeholder={t('adminUsers.keepCurrentPassword')} />
+            <PasswordInput value={form.new_password} onChange={v => setForm(f => ({ ...f, new_password: v }))} className={inputCls} placeholder={t('adminUsers.keepCurrentPassword')} />
           </div>
         )}
         <div className="flex justify-end gap-2 pt-2">

@@ -8,6 +8,7 @@ import { LocationPicker } from '@/components/shared/LocationPicker';
 import type { Project, SalesDivision } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { Loader2 } from 'lucide-react';
+import { SearchableSelect } from '@/components/shared/SearchableSelect';
 
 export function ProjectFormModal({
   open, onClose, onSaved, project,
@@ -94,10 +95,12 @@ export function ProjectFormModal({
         </Field>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label={t('projects.customerCompany')} required>
-            <select value={form.sales_division_id} onChange={e => setForm(f => ({ ...f, sales_division_id: e.target.value }))} className={inputCls}>
-              <option value="">{t('projects.selectCustomer')}</option>
-              {divisions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.sales_division_id}
+              onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
+              options={divisions.map(d => ({ value: d.id, label: d.name }))}
+              placeholder={t('projects.selectCustomer')}
+            />
           </Field>
           <Field label={t('projects.salesPersonName')}>
             <input value={form.sales_person_name} onChange={e => setForm(f => ({ ...f, sales_person_name: e.target.value }))} className={inputCls} placeholder="e.g. Budi" />

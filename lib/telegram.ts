@@ -1,5 +1,14 @@
 import { getAdminClient } from './supabase-admin';
 
+/**
+ * Every message goes out with parse_mode HTML, where a bare <, > or & in a
+ * project name, title or review note makes Telegram reject the whole
+ * message ("can't parse entities"), and since sending is best-effort, it
+ * vanished without a trace. Anything user-typed goes through this.
+ */
+export const esc = (v: string | null | undefined): string =>
+  String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 async function getBotToken(): Promise<string | null> {
   const supabase = getAdminClient();
   const { data } = await supabase.from('notification_settings').select('telegram_bot_token').eq('id', true).single();
@@ -38,15 +47,19 @@ export async function sendTelegramMessages(chatIds: string[], text: string): Pro
  */
 export async function sendTelegramNotification(
   message: string,
-  event: 'completion' | 'review_decision'
+  event: 'completion' | 'review_decision' | 'admin'
 ): Promise<void> {
   try {
     const supabase = getAdminClient();
-    const toggleColumn = event === 'completion' ? 'notify_on_completion' : 'notify_on_review_decision';
+    // 'admin' (a new project request, a forgotten password) is something an
+    // admin has to act on, so it goes to every active group regardless of
+    // the two per-event toggles.
+    let groupQuery = supabase.from('notification_groups').select('telegram_chat_id').eq('active', true);
+    if (event !== 'admin') groupQuery = groupQuery.eq(event === 'completion' ? 'notify_on_completion' : 'notify_on_review_decision', true);
 
     const [{ data: settings }, { data: groups }] = await Promise.all([
       supabase.from('notification_settings').select('telegram_bot_token').eq('id', true).single(),
-      supabase.from('notification_groups').select('telegram_chat_id').eq('active', true).eq(toggleColumn, true),
+      groupQuery,
     ]);
 
     const token = settings?.telegram_bot_token;

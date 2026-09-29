@@ -6,9 +6,10 @@ import { RefreshCw, ClipboardList, PlayCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Activity } from '@/lib/types';
-import { formatDate, errorMessage } from '@/lib/utils';
+import { formatDate, errorMessage, localDateKey } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SkeletonCards, SkeletonList, ErrorState } from '@/components/shared/States';
+import { notifyAppReady } from '@/lib/native';
 
 /**
  * A field installer's whole job on this app: see what's assigned to them,
@@ -43,12 +44,14 @@ export function InstallerDashboard() {
       setError(errorMessage(e, t('dashboard.installerFailedToLoad')));
     } finally {
       setLoading(false);
+      notifyAppReady(); // Android app: first data is in, drop the loading screen
     }
   }, [user, t]);
 
   useEffect(() => { load(); }, [load]);
 
   const inProgressCount = tasks.filter(a => a.status === 'in_progress').length;
+  const todayKey = localDateKey();
 
   return (
     <div>
@@ -57,7 +60,7 @@ export function InstallerDashboard() {
           <h1 className="text-xl font-semibold text-slate-900">{t('dashboard.welcomeBack')}{user?.full_name ? `, ${user.full_name}` : ''}</h1>
           <p className="text-sm text-slate-500 mt-0.5">{t('dashboard.installerSubtitle')}</p>
         </div>
-        <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shrink-0">
+        <button onClick={load} title={t('common.refresh')} aria-label={t('common.refresh')} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 shrink-0">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
@@ -108,7 +111,17 @@ export function InstallerDashboard() {
                     </div>
                     <StatusBadge status={a.status} />
                   </div>
-                  <p className="text-xs text-slate-400 mt-2">{formatDate(a.scheduled_date)}{a.start_time ? ` · ${a.start_time.slice(0, 5)}` : ''}</p>
+                  <p className="text-xs text-slate-400 mt-2 flex items-center gap-2">
+                    {/* At a glance, which of these is today's and which slipped past its
+                        date. Dates alone meant reading and comparing every card. */}
+                    {a.scheduled_date < todayKey && a.status === 'scheduled' && (
+                      <span className="rounded-full bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 font-medium">{t('dashboard.overdue')}</span>
+                    )}
+                    {a.scheduled_date === todayKey && (
+                      <span className="rounded-full bg-brand-50 text-brand-700 border border-brand-200 px-2 py-0.5 font-medium">{t('dashboard.today')}</span>
+                    )}
+                    <span>{formatDate(a.scheduled_date)}{a.start_time ? ` · ${a.start_time.slice(0, 5)}` : ''}</span>
+                  </p>
                 </Link>
               ))}
             </div>

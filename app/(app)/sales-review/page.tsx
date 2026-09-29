@@ -6,7 +6,8 @@ import { RefreshCw, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { SalesReview } from '@/lib/types';
-import { formatDateTime, errorMessage } from '@/lib/utils';
+import { formatDateTime, errorMessage, ilikeAny } from '@/lib/utils';
+import { useSessionState, useDebouncedValue } from '@/lib/useListState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
@@ -18,9 +19,10 @@ export default function SalesReviewPage() {
   const { t } = useLanguage();
   const [reviews, setReviews] = useState<SalesReview[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('pending');
+  const [page, setPage] = useSessionState('salesReview.page', 1);
+  const [search, setSearch] = useSessionState('salesReview.search', '');
+  const [status, setStatus] = useSessionState('salesReview.status', 'pending');
+  const debouncedSearch = useDebouncedValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,28 +32,30 @@ export default function SalesReviewPage() {
     try {
       let query = supabase
         .from('sales_reviews')
-        .select('*, activities(id, title, request_number, scheduled_date, project_id, projects(name), activity_categories(name))', { count: 'exact' })
+        .select('*, activities!inner(id, title, request_number, scheduled_date, project_id, projects(name), activity_categories(name))', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
 
       if (status) query = query.eq('status', status);
-      if (search.trim()) {
-        query = query.or(`title.ilike.%${search.trim()}%,request_number.ilike.%${search.trim()}%`, { foreignTable: 'activities' });
-      }
+      // activities!inner above is what makes this narrow the review rows
+      // themselves; with a plain embed it only blanked out the non-matching
+      // activities and still listed every review.
+      const searchFilter = ilikeAny(['title', 'request_number'], debouncedSearch);
+      if (searchFilter) query = query.or(searchFilter, { foreignTable: 'activities' });
 
       const { data, error: err, count } = await query;
       if (err) throw err;
       setReviews((data as unknown as SalesReview[]) ?? []);
       setTotal(count ?? 0);
+      if (page > 1 && (data ?? []).length === 0 && (count ?? 0) > 0) setPage(1);
     } catch (e) {
-      setError(errorMessage(e, 'Failed to load reviews.'));
+      setError(errorMessage(e, t('common.failedToLoad')));
     } finally {
       setLoading(false);
     }
-  }, [page, search, status]);
+  }, [page, debouncedSearch, status, t, setPage]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, status]);
 
   return (
     <div>
@@ -61,13 +65,13 @@ export default function SalesReviewPage() {
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <div className="flex-1"><SearchInput value={search} onChange={setSearch} placeholder={t('activity.searchPlaceholder')} /></div>
-        <select value={status} onChange={e => setStatus(e.target.value)} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
+        <div className="flex-1"><SearchInput value={search} onChange={v => { setSearch(v); setPage(1); }} placeholder={t('activity.searchPlaceholder')} /></div>
+        <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} className="rounded-control border border-slate-300 px-3 py-2 text-sm">
           <option value="">{t('common.allStatuses')}</option>
           <option value="pending">{t('status.pending')}</option>
           <option value="submitted">{t('status.submitted')}</option>
         </select>
-        <button onClick={load} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
+        <button onClick={load} title={t('common.refresh')} aria-label={t('common.refresh')} className="inline-flex items-center justify-center rounded-control border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>

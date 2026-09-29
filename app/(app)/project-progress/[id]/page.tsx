@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Users, Camera, Navigation, CheckCircle2, Clock, CalendarClock, ListTodo, AlertTriangle, History } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { Users, Camera, Navigation, CheckCircle2, Clock, CalendarClock, ListTodo, AlertTriangle, History } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { Project, Activity, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
-import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/utils';
+import { formatDate, formatDateTime, formatDistance, errorMessage, localDateKey } from '@/lib/utils';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { useSignedUrls } from '@/lib/useSignedUrls';
+import { BackButton } from '@/components/shared/BackButton';
 
 export default function ProjectProgressDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { t } = useLanguage();
   const [project, setProject] = useState<Project | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
@@ -70,7 +70,7 @@ export default function ProjectProgressDetailPage() {
   const total = activities.length;
   const completed = activities.filter(a => a.status === 'completed').length;
   const inProgress = activities.filter(a => a.status === 'in_progress').length;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateKey();
   const upcoming = activities.filter(a => a.status === 'scheduled' && a.scheduled_date >= today).length;
   const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
   const uniquePersonnel = Array.from(new Map(personnel.map(p => [p.name.toLowerCase(), p])).values());
@@ -81,9 +81,7 @@ export default function ProjectProgressDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.push('/project-progress')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> {t('projectProgress.backToProjectProgress')}
-      </button>
+      <BackButton fallbackHref="/project-progress" />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
         <div className="flex items-start justify-between gap-3">

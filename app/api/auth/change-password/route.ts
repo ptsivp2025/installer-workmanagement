@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { getSessionUser } from '@/lib/server-auth';
+import { getSessionUser, endOtherSessions } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
 
   const newHash = await bcrypt.hash(newPassword, 12);
   await supabase.from('user_credentials').update({ password_hash: newHash, updated_at: new Date().toISOString() }).eq('user_id', user.id);
+
+  await endOtherSessions(request, user.id);
 
   return NextResponse.json({ success: true });
 }

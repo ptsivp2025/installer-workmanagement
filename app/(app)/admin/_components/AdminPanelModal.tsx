@@ -11,6 +11,7 @@ import { SalesDivisionsSection } from './SalesDivisionsSection';
 import { SettingsSection } from './SettingsSection';
 import { NotificationsSection } from './NotificationsSection';
 import { IntegrationsSection } from './IntegrationsSection';
+import { AuditLogSection } from './AuditLogSection';
 import type { AdminTab } from './types';
 
 // A popup, not a page: the main app sidebar/content stay mounted (dimmed)
@@ -61,6 +62,7 @@ export function AdminPanelModal({ open, onClose }: { open: boolean; onClose: () 
               {tab === 'sales-divisions' && <SalesDivisionsSection />}
               {tab === 'settings' && <SettingsSection />}
               {tab === 'notifications' && <NotificationsSection />}
+              {tab === 'audit-log' && <AuditLogSection />}
               {tab === 'integrations' && <IntegrationsSection onOpenNotifications={() => selectTab('notifications')} />}
             </div>
           </div>

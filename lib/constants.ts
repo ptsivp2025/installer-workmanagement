@@ -1,4 +1,17 @@
-export const SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours, matches TOKEN_HOURS in lib/db-token.ts
+// How long a tab trusts its cached profile (lib/auth.ts) before re-checking
+// the login with the server. Not the login's lifetime: that's the session
+// cookie (lib/server-auth.ts). Matches TOKEN_HOURS in lib/db-token.ts.
+export const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
+
+// GPS flags that only say HOW a job was done, not that anything looks faked:
+// 'web_browser' (outside the Android app; it blocks only when the app is
+// required) and 'no_challenge' (a page loaded before migration 026).
+const INFO_GPS_FLAGS = ['web_browser', 'no_challenge'];
+
+/** The GPS risk flags worth showing a reviewer. */
+export function suspiciousGpsFlags(flags: string[] | null | undefined): string[] {
+  return (flags ?? []).filter(f => !INFO_GPS_FLAGS.includes(f));
+}
 
 export const ROLES = ['admin', 'supervisor', 'installer', 'reviewer', 'sales'] as const;
 export type Role = (typeof ROLES)[number];

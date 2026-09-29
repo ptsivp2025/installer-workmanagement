@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project, Activity, ActivityPersonnel, ActivityDiscountEligibility } from '@/lib/types';
@@ -11,10 +11,10 @@ import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ProjectFormModal } from '../_components/ProjectFormModal';
+import { BackButton } from '@/components/shared/BackButton';
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
   const [project, setProject] = useState<Project | null>(null);
@@ -86,9 +86,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div>
-      <button onClick={() => router.push('/projects')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> {t('projects.backToProjects')}
-      </button>
+      <BackButton fallbackHref="/projects" />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-6">
         <div className="flex items-start justify-between gap-4">

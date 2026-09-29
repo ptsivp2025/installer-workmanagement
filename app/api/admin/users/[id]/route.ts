@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { getSessionUser } from '@/lib/server-auth';
+import { getSessionUser, endOtherSessions } from '@/lib/server-auth';
 import { ROLES } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +44,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const passwordHash = await bcrypt.hash(new_password, 12);
     const { error } = await supabase.from('user_credentials').update({ password_hash: passwordHash, updated_at: new Date().toISOString() }).eq('user_id', params.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    // Same as reset-password: a new password ends the existing logins.
+    await endOtherSessions(request, params.id);
+    await supabase.from('password_reset_requests')
+      .update({ status: 'resolved', resolved_by: requester.id, resolved_at: new Date().toISOString() })
+      .eq('user_id', params.id).eq('status', 'pending');
   }
 
   return NextResponse.json({ success: true });

@@ -41,6 +41,10 @@ export function SalesRescheduleModal({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!activity || !form.scheduled_date) return;
+    if (form.start_time && form.end_time && form.end_time <= form.start_time) {
+      setError(t('activity.endBeforeStart'));
+      return;
+    }
     setSaving(true);
     setError(null);
 

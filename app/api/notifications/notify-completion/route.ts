@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSessionUser } from '@/lib/server-auth';
-import { sendTelegramNotification } from '@/lib/telegram';
+import { sendTelegramNotification, esc } from '@/lib/telegram';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,9 +30,9 @@ export async function POST(request: NextRequest) {
 
   await sendTelegramNotification(
     `✅ <b>Activity Completed</b>\n` +
-    `${category?.name ?? ''}: ${activity.title}\n` +
-    `Project: ${project?.name ?? ''} (${project?.code ?? ''})\n` +
-    `By: ${user.full_name ?? user.username}`,
+    `${esc(category?.name)}: ${esc(activity.title)}\n` +
+    `Project: ${esc(project?.name)} (${esc(project?.code)})\n` +
+    `By: ${esc(user.full_name ?? user.username)}`,
     'completion'
   );
 

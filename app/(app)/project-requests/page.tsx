@@ -11,6 +11,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState, EmptyState, SkeletonList } from '@/components/shared/States';
 import { ProjectRequestFormModal } from './_components/ProjectRequestFormModal';
 import { ApproveRequestModal } from './_components/ApproveRequestModal';
+import { useDialog } from '@/components/shared/ConfirmDialog';
 
 export default function ProjectRequestsPage() {
   const { user } = useAuth();
@@ -87,6 +88,7 @@ function SalesRequestList() {
 // ── Admin/Supervisor: decide the queue ──────────────────────────────────────
 function StaffRequestQueue() {
   const { t } = useLanguage();
+  const { prompt: askText, dialog } = useDialog();
   const router = useRouter();
   const [requests, setRequests] = useState<ProjectRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,8 +112,11 @@ function StaffRequestQueue() {
   useEffect(() => { load(); }, [load]);
 
   async function handleReject(r: ProjectRequest) {
-    const reason = window.prompt(t('projectRequests.rejectPrompt'));
-    if (!reason || !reason.trim()) return;
+    const reason = await askText({
+      title: t('projectRequests.rejectPrompt'), message: r.project_name,
+      label: t('projectRequests.rejectionReason'), required: true, confirmLabel: t('projectRequests.reject'), danger: true,
+    });
+    if (!reason) return;
     setRejecting(r.id);
     const { error: err } = await supabase.rpc('iwm_reject_project_request', { p_request_id: r.id, p_reason: reason.trim() });
     setRejecting(null);
@@ -213,6 +218,7 @@ function StaffRequestQueue() {
         onClose={() => setApproving(null)}
         onDone={(projectId) => { setApproving(null); load(); router.push(`/request-schedule?projectId=${projectId}`); }}
       />
+      {dialog}
     </div>
   );
 }

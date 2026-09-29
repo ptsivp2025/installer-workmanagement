@@ -9,6 +9,7 @@ import { setDbToken } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import { LanguageToggle } from '@/components/shared/LanguageToggle';
 import type { DictKey } from '@/lib/i18n';
+import { notifyAppReady } from '@/lib/native';
 
 const FEATURES: { icon: React.ElementType; key: DictKey }[] = [
   { icon: CalendarClock, key: 'login.feature.requestSchedule' },
@@ -32,6 +33,9 @@ function LoginForm() {
     login_headline: string | null; login_subheadline: string | null;
     primary_color: string; secondary_color: string;
   } | null>(null);
+
+  // Android app: the login screen needs no data, so it's ready as soon as it renders.
+  useEffect(() => { notifyAppReady(); }, []);
 
   useEffect(() => {
     fetch('/api/public/branding').then(r => r.json()).then(setBrand).catch(() => {});
@@ -90,9 +94,9 @@ function LoginForm() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-xl object-contain bg-white/15 backdrop-blur" />
             ) : (
-              <div className="h-9 w-9 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center font-bold text-lg">
-                {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
-              </div>
+              // Default logo (a worker in a hard hat) until an admin uploads one.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src="/logo.svg" alt="" className="h-9 w-9 rounded-xl shrink-0" />
             )}
             <span className="text-lg font-bold tracking-tight">{brand?.platform_name ?? 'Installer Work Management'}</span>
           </div>
@@ -126,9 +130,9 @@ function LoginForm() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={brand.logo_url} alt="" className="h-9 w-9 rounded-xl object-contain" />
               ) : (
-                <div className="h-9 w-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold">
-                  {(brand?.platform_name ?? 'IW').slice(0, 2).toUpperCase()}
-                </div>
+                // Default logo (a worker in a hard hat) until an admin uploads one.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src="/logo.svg" alt="" className="h-9 w-9 rounded-xl shrink-0" />
               )}
               <span className="text-lg font-bold text-slate-900">{brand?.platform_name ?? 'Installer Work Management'}</span>
             </div>
@@ -146,13 +150,20 @@ function LoginForm() {
                 type="text"
                 required
                 autoFocus
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                autoComplete="username"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 className="w-full rounded-control border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold mb-1.5 text-slate-600 tracking-wide uppercase">{t('login.password')}</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-600 tracking-wide uppercase">{t('login.password')}</label>
+                <Link href="/forgot-password" className="text-xs font-medium text-brand-600 hover:underline">{t('forgot.link')}</Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}

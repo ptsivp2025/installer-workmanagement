@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle, History, Package, Star } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Users, Camera, Navigation, RotateCcw, AlertTriangle, History, Package, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { FormReview, ActivityPersonnel, ActivityEvidence, ActivityDiscountEligibility } from '@/lib/types';
@@ -11,12 +11,16 @@ import { formatDate, formatDateTime, formatDistance, errorMessage } from '@/lib/
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { useSignedUrls } from '@/lib/useSignedUrls';
+import { BackButton } from '@/components/shared/BackButton';
+import { useDialog } from '@/components/shared/ConfirmDialog';
+import { GpsRiskBanner } from '@/components/shared/GpsRiskBanner';
 
 export default function FormReviewDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { confirm: askConfirm, dialog } = useDialog();
   const [review, setReview] = useState<FormReview | null>(null);
   const [personnel, setPersonnel] = useState<ActivityPersonnel[]>([]);
   const [evidence, setEvidence] = useState<ActivityEvidence[]>([]);
@@ -28,6 +32,7 @@ export default function FormReviewDetailPage() {
   const [deciding, setDeciding] = useState<'approved' | 'rejected' | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
   const [reopening, setReopening] = useState(false);
+  const [blockedMockAttempts, setBlockedMockAttempts] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +54,13 @@ export default function FormReviewDetailPage() {
       ]);
       setPersonnel((pers as ActivityPersonnel[]) ?? []);
       setEvidence((evid as ActivityEvidence[]) ?? []);
+
+      // Completion attempts the server refused as Fake GPS (023). Even if
+      // the final attempt was clean, a reviewer should know someone tried.
+      const { count: mockCount } = await supabase.from('activity_gps_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('activity_id', activityId).eq('validation_status', 'suspected_mock');
+      setBlockedMockAttempts(mockCount ?? 0);
 
       // Best-effort — see the same note in request-schedule/[id]/page.tsx.
       try {
@@ -77,9 +89,16 @@ export default function FormReviewDetailPage() {
     setDecisionError(null);
     const { data, error: err } = await supabase.rpc('iwm_review_activity', { p_review_id: id, p_decision: decision, p_notes: notes.trim() || null });
     setDeciding(null);
-    if (err) { setDecisionError(err.message); return; }
+    if (err) { setDecisionError(errorMessage(err, t('common.actionFailed'))); return; }
     if (data?.status !== decision) { setDecisionError(t('formReview.decisionError')); return; }
     fetch('/api/notifications/notify-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reviewId: id }),
+    }).catch(() => {});
+    // …and the field team that did the job (their own Telegram), which was
+    // never called before: installers didn't hear their work was rejected.
+    fetch('/api/notifications/review-decided', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reviewId: id }),
@@ -88,12 +107,12 @@ export default function FormReviewDetailPage() {
   }
 
   async function handleReopen() {
-    if (!confirm(t('formReview.reopenConfirm'))) return;
+    if (!(await askConfirm({ title: t('formReview.reopenForCorrection'), message: t('formReview.reopenConfirm'), confirmLabel: t('formReview.reopenForCorrection') }))) return;
     setReopening(true);
     setDecisionError(null);
     const { error: err } = await supabase.rpc('iwm_reopen_activity', { p_activity_id: review!.activity_id });
     setReopening(false);
-    if (err) { setDecisionError(err.message); return; }
+    if (err) { setDecisionError(errorMessage(err, t('common.actionFailed'))); return; }
     router.push(`/request-schedule/${review!.activity_id}`);
   }
 
@@ -106,9 +125,7 @@ export default function FormReviewDetailPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <button onClick={() => router.push('/form-review')} className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-4">
-        <ArrowLeft className="h-4 w-4" /> {t('formReview.backToFormReview')}
-      </button>
+      <BackButton fallbackHref="/form-review" />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-card p-5 mb-4">
         <div className="flex items-start justify-between gap-3">
@@ -133,8 +150,16 @@ export default function FormReviewDetailPage() {
                 {activity.distance_from_target_m != null && ` · ${formatDistance(activity.distance_from_target_m)} ${t('formReview.fromTarget')}`}</>
             ) : t('formReview.gpsNotRequired')}
           </div>
+          {activity.started_at && (
+            <div className="text-slate-500 col-span-2">
+              {t('formReview.checkedIn')} {formatDateTime(activity.started_at)}
+              {activity.start_distance_m != null && ` · ${formatDistance(activity.start_distance_m)} ${t('formReview.fromTarget')}`}
+            </div>
+          )}
           <div className="text-slate-500 col-span-2">{t('formReview.completed')} {formatDateTime(activity.completed_at)}</div>
         </div>
+
+        <div className="mt-4"><GpsRiskBanner flags={Array.from(new Set([...(activity.gps_risk_flags ?? []), ...(activity.start_gps_flags ?? [])]))} blockedAttempts={blockedMockAttempts} /></div>
 
         {(activity.product_brand || activity.product_type) && (
           <div className="mt-4 flex items-center gap-1.5 text-sm text-slate-600">
@@ -225,6 +250,7 @@ export default function FormReviewDetailPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }

@@ -1,1 +1,1 @@
-export type AdminTab = 'categories' | 'users' | 'sales-divisions' | 'settings' | 'notifications' | 'integrations';
+export type AdminTab = 'categories' | 'users' | 'sales-divisions' | 'settings' | 'notifications' | 'integrations' | 'audit-log';

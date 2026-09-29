@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.iwm.app"
+    android:versionCode="6"
+    android:versionName="1.5">
+
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Needed to see which app (if any) is selected as the "mock location
+         app" in Developer Options, the Fake GPS check. Sideloaded APK only. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- In-app update (UpdateChecker): hand a downloaded APK to the installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- No CAMERA permission on purpose: declaring it without holding it
+         makes Android refuse the camera intent. The camera app takes the
+         photo; this app never touches the camera itself. -->
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|uiMode"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <provider
+            android:name=".CameraProvider"
+            android:authorities="com.iwm.app.camera"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+    </application>
+</manifest>
