@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { Camera, Trash2, Loader2, AlertTriangle, RefreshCw, X, ImagePlus, CloudOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { errorMessage } from '@/lib/utils';
-import { useAuth, useLanguage } from '@/app/providers';
+import { useAuth, useLanguage, useSettings } from '@/app/providers';
 import type { ActivityEvidence } from '@/lib/types';
 import { uploadEvidencePhoto, deleteEvidencePhoto, fetchSignedUrls } from '@/lib/evidence';
 import { useSignedUrls } from '@/lib/useSignedUrls';
@@ -22,6 +22,7 @@ export function EvidencePanel({
 }) {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { get } = useSettings();
   const { confirm: askConfirm, dialog } = useDialog();
   const { urls: thumbs, error: thumbsError, retry: retryThumbs } = useSignedUrls(evidence.map(e => e.thumbnail_path ?? e.storage_path));
   const [uploading, setUploading] = useState(false);
@@ -40,7 +41,7 @@ export function EvidencePanel({
   useEffect(() => { refreshQueue(); }, [refreshQueue]);
 
   async function uploadOne(file: File) {
-    const { storagePath, thumbnailPath } = await uploadEvidencePhoto(activityId, file);
+    const { storagePath, thumbnailPath } = await uploadEvidencePhoto(activityId, file, { maxDim: get<number>('photo.max_dim'), qualityPct: get<number>('photo.quality') });
     const { error: err } = await supabase.from('activity_evidence').insert({
       activity_id: activityId, project_id: projectId, uploader_id: user?.id ?? null,
       storage_path: storagePath, thumbnail_path: thumbnailPath, evidence_type: 'completion',

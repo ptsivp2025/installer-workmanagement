@@ -24,6 +24,9 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
   const { t } = useLanguage();
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [salesDivisionId, setSalesDivisionId] = useState<string | null>(null);
+  const [salesChoices, setSalesChoices] = useState<{ id: string; full_name: string; username: string }[]>([]);
+  const [salesUserId, setSalesUserId] = useState('');
+  const isAdminSales = user?.role === 'sales_admin';
   const [form, setForm] = useState({
     project_name: '', customer_name: '', customer_phone: '', address: '', latitude: '', longitude: '',
     category_id: '', requested_date: '', notes: '',
@@ -42,18 +45,25 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
     // cached session profile.
     supabase.from('users').select('sales_division_id').eq('id', user.id).single()
       .then((res: { data: { sales_division_id: string | null } | null }) => setSalesDivisionId(res.data?.sales_division_id ?? null));
+    // Admin Sales asks on behalf of one of its division's Sales Proyek; a
+    // Sales Proyek always asks for itself (enforced by the database, 030).
+    setSalesUserId('');
+    supabase.rpc('iwm_sales_choices')
+      .then((res: { data: { id: string; full_name: string; username: string }[] | null }) => setSalesChoices(res.data ?? []));
   }, [open, user]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.project_name.trim()) { setError(t('projectRequests.nameRequired')); return; }
     if (!salesDivisionId) { setError(t('projectRequests.noDivision')); return; }
+    if (isAdminSales && !salesUserId) { setError(t('projectRequests.salesRequired')); return; }
     setSaving(true);
     setError(null);
 
     const { data: created, error: err } = await supabase.from('project_requests').insert({
       requested_by: user!.id,
       sales_division_id: salesDivisionId,
+      sales_user_id: isAdminSales ? salesUserId : user!.id,
       project_name: form.project_name.trim(),
       customer_name: form.customer_name.trim() || null,
       customer_phone: form.customer_phone.trim() || null,
@@ -83,6 +93,22 @@ export function ProjectRequestFormModal({ open, onClose, onSaved }: { open: bool
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 animate-fade-in">{error}</div>}
         <p className="text-sm text-slate-500 -mt-1">{t('projectRequests.formIntro')}</p>
+
+        {isAdminSales ? (
+          <Field label={t('projects.salesOwner')} required>
+            <SearchableSelect
+              value={salesUserId}
+              onChange={setSalesUserId}
+              options={salesChoices.map(u => ({ value: u.id, label: u.full_name || u.username, hint: `@${u.username}` }))}
+              placeholder={t('projects.selectSalesOwner')}
+            />
+            <p className="text-[11px] text-slate-400 mt-1">{t('projectRequests.onBehalfHint')}</p>
+          </Field>
+        ) : (
+          <p className="text-[12.5px] text-slate-600 rounded-control bg-brand-50 border border-brand-100 px-3 py-2">
+            {t('projectRequests.salesOwnerLine', { name: user?.full_name || user?.username || '' })}
+          </p>
+        )}
 
         <Field label={t('projectRequests.projectName')} required>
           <input value={form.project_name} onChange={e => setForm(f => ({ ...f, project_name: e.target.value }))} className={inputCls} placeholder="e.g. ABC Hotel — Lobby" />

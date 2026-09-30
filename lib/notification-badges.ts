@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { SessionUserProfile } from '@/lib/auth';
 import { localDateKey } from '@/lib/utils';
+import { isSalesRole } from '@/lib/constants';
 
 export interface NavBadgeCounts {
   /** Pending account registrations — admin only. */
@@ -22,7 +23,6 @@ export interface NavBadgeCounts {
 
 const EMPTY: NavBadgeCounts = { registrations: 0, projectRequests: 0, formReview: 0, salesReview: 0, today: 0, overdue: 0 };
 const OPEN = ['scheduled', 'in_progress'];
-const POLL_MS = 30_000;
 
 async function headCount(table: string, column: string, value: string): Promise<number> {
   const { count } = await supabase.from(table).select('*', { count: 'exact', head: true }).eq(column, value);
@@ -38,7 +38,7 @@ async function headCount(table: string, column: string, value: string): Promise<
  * there's nothing else for a feed to tell someone that the badge + the
  * queue itself don't already say.
  */
-export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
+export function useNavBadges(user: SessionUserProfile | null, pollMs = 30_000): NavBadgeCounts {
   const [badges, setBadges] = useState<NavBadgeCounts>(EMPTY);
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
       if (['admin', 'supervisor', 'reviewer'].includes(user!.role)) {
         tasks.push(headCount('form_reviews', 'status', 'pending').then(n => { next.formReview = n; }));
       }
-      if (user!.role !== 'sales') {
+      if (user!.role !== 'sales') { // Sales Proyek has no schedule list; Admin Sales does
         const today = localDateKey();
         let q = user!.role === 'installer'
           ? supabase.from('activities').select('id, activity_personnel!inner(user_id)', { count: 'exact', head: true })
@@ -77,8 +77,8 @@ export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
           supabase.from('activities').select('*', { count: 'exact', head: true }).lt('scheduled_date', localDateKey()).in('status', OPEN),
         ).then(({ count }) => { next.overdue = count ?? 0; }));
       }
-      if (user!.role === 'sales') {
-        // RLS already scopes sales_reviews to this account's own division.
+      if (isSalesRole(user!.role)) {
+        // RLS scopes sales_reviews to what this account may see.
         tasks.push(headCount('sales_reviews', 'status', 'pending').then(n => { next.salesReview = n; }));
       }
 
@@ -87,14 +87,14 @@ export function useNavBadges(user: SessionUserProfile | null): NavBadgeCounts {
     }
 
     load();
-    const interval = setInterval(load, POLL_MS);
+    const interval = setInterval(load, pollMs);
     const onFocus = () => load();
     window.addEventListener('focus', onFocus);
     return () => { cancelled = true; clearInterval(interval); window.removeEventListener('focus', onFocus); };
     // Keyed on id/role, not the whole user object — a profile edit
     // (full_name, phone, …) shouldn't restart the poll interval.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role]);
+  }, [user?.id, user?.role, pollMs]);
 
   return badges;
 }

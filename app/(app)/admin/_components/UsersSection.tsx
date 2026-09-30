@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, Pencil, Power, Loader2, KeyRound, Check, X, UserPlus } from 'lucide-react';
+import { Plus, Pencil, Power, Loader2, KeyRound, Check, X, UserPlus, Trash2 } from 'lucide-react';
 
 interface ResetRequest { id: string; user_id: string | null; username: string; contact: string | null; created_at: string }
 import { supabase } from '@/lib/supabase';
@@ -9,7 +9,11 @@ import { useAuth, useLanguage } from '@/app/providers';
 import { formatDateTime } from '@/lib/utils';
 import type { AppUser, SalesDivision } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
-import { ROLES, POSITIONS } from '@/lib/constants';
+import { ACCOUNT_TYPES, accountTypeOf, isSalesRole } from '@/lib/constants';
+import { usePositions, positionLabel } from '@/lib/positions';
+import { AccountTypePicker } from '@/components/shared/AccountTypePicker';
+import { DeleteButton } from '@/components/shared/DeleteButton';
+import { MiniDonut } from '@/components/shared/MiniDonut';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
 import { SearchInput } from '@/components/shared/SearchInput';
@@ -30,6 +34,8 @@ export function UsersSection() {
 
   const [deciding, setDeciding] = useState<string | null>(null);
   const [resetRequests, setResetRequests] = useState<ResetRequest[]>([]);
+  const positions = usePositions();
+  const [typeFilter, setTypeFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +99,7 @@ export function UsersSection() {
   if (!me) return <LoadingState />;
 
   const pending = users.filter(u => u.approval_status === 'pending');
+  const typeCounts = ACCOUNT_TYPES.map(type => ({ key: type, count: users.filter(u => u.approval_status === 'approved' && accountTypeOf(u.role) === type).length }));
 
   return (
     <div>
@@ -161,7 +168,10 @@ export function UsersSection() {
                     {u.phone && ` · ${u.phone}`}
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {u.position && `${t(`position.${u.position}` as DictKey)} · `}
+                    <span className="font-semibold text-slate-600">{t(`account.${accountTypeOf(u.role)}` as DictKey)}</span>
+                    {accountTypeOf(u.role) === 'team' && ` (${t(`role.${u.role}` as DictKey)})`}
+                    {' · '}
+                    {u.position && `${positionLabel(u.position, positions)} · `}
                     {u.sales_divisions?.name}
                     {u.registered_at && ` · ${t('adminUsers.registeredOn')} ${formatDateTime(u.registered_at)}`}
                   </p>
@@ -188,6 +198,15 @@ export function UsersSection() {
         </div>
       )}
 
+      {/* Who is on the platform, by account type — click one to list only those. */}
+      <MiniDonut
+        className="mb-4"
+        title={t('account.title')}
+        items={typeCounts.map(c => ({ key: c.key, label: t(`account.${c.key}` as DictKey), count: c.count, color: TYPE_COLOR[c.key] }))}
+        active={typeFilter}
+        onPick={k => setTypeFilter(v => (v === k ? '' : k))}
+      />
+
       {users.length > 6 && (
         <div className="mb-4"><SearchInput value={search} onChange={setSearch} placeholder={t('adminUsers.searchPlaceholder')} /></div>
       )}
@@ -195,8 +214,9 @@ export function UsersSection() {
       <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? <LoadingState /> : error ? <ErrorState message={error} onRetry={load} /> : (() => {
           const filtered = users.filter(u =>
+            (!typeFilter || accountTypeOf(u.role) === typeFilter) && (
             u.full_name.toLowerCase().includes(search.trim().toLowerCase()) ||
-            u.username.toLowerCase().includes(search.trim().toLowerCase())
+            u.username.toLowerCase().includes(search.trim().toLowerCase()))
           );
           return filtered.length === 0 ? (
             <p className="text-sm text-slate-400 p-5">{t('adminUsers.noMatch', { search })}</p>
@@ -221,8 +241,13 @@ export function UsersSection() {
                     {u.email && <p className="text-xs text-slate-400">{u.email}</p>}
                   </td>
                   <td className="px-4 py-3 text-slate-500 font-mono text-xs">{u.username}</td>
-                  <td className="px-4 py-3 text-slate-600">{t(`role.${u.role}` as DictKey)}</td>
-                  <td className="px-4 py-3 text-slate-600">{u.position ? t(`position.${u.position}` as DictKey) : '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <p className="font-medium text-slate-700">{t(`account.${accountTypeOf(u.role)}` as DictKey)}</p>
+                    <p className="text-xs text-slate-400">
+                      {accountTypeOf(u.role) === 'team' ? t(`role.${u.role}` as DictKey) : isSalesRole(u.role) ? (u.sales_divisions?.name ?? '—') : ''}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{u.position ? positionLabel(u.position, positions) : '—'}</td>
                   <td className="px-4 py-3 text-slate-500">{u.phone ?? '—'}</td>
                   <td className="px-4 py-3">
                     {u.approval_status === 'rejected' ? (
@@ -241,6 +266,9 @@ export function UsersSection() {
                       title={u.id === me.id ? t('adminUsers.cannotDeactivateSelf') : u.active ? t('common.deactivate') : t('common.activate')}
                       className="text-slate-400 hover:text-slate-700 inline-flex disabled:opacity-30"
                     ><Power className="h-4 w-4" /></button>
+                    {u.id !== me.id && (
+                      <DeleteButton kind="user" id={u.id} name={u.full_name || u.username} onDeleted={load} />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -260,6 +288,7 @@ function UserFormModal({
   open, onClose, onSaved, user, selfId,
 }: { open: boolean; onClose: () => void; onSaved: () => void; user: AppUser | null; selfId: string }) {
   const { t } = useLanguage();
+  const positions = usePositions();
   const [form, setForm] = useState({ username: '', full_name: '', role: 'installer', phone: '', email: '', position: '', password: '', new_password: '', sales_division_id: '' });
   const [divisions, setDivisions] = useState<SalesDivision[]>([]);
   const [saving, setSaving] = useState(false);
@@ -288,7 +317,7 @@ function UserFormModal({
       setError(t('adminUsers.newUserRequirements'));
       return;
     }
-    if (form.role === 'sales' && !form.sales_division_id) { setError(t('adminUsers.divisionRequired')); return; }
+    if (isSalesRole(form.role) && !form.sales_division_id) { setError(t('account.divisionRequired')); return; }
     setSaving(true);
     setError(null);
 
@@ -321,25 +350,15 @@ function UserFormModal({
           <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.username')}</label>
           <input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} className={inputCls} disabled={!!user} />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.role')}</label>
-          <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls} disabled={user?.id === selfId}>
-            {ROLES.map(r => <option key={r} value={r}>{t(`role.${r}` as DictKey)}</option>)}
-          </select>
-          {user?.id === selfId && <p className="text-xs text-slate-400 mt-1">{t('adminUsers.cannotChangeOwnRole')}</p>}
-        </div>
-        {form.role === 'sales' && (
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.salesDivision')}</label>
-            <SearchableSelect
-              value={form.sales_division_id}
-              onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
-              options={divisions.map(d => ({ value: d.id, label: d.name }))}
-              placeholder={t('adminUsers.selectDivision')}
-            />
-            <p className="text-xs text-slate-400 mt-1">{t('adminUsers.salesDivisionHint')}</p>
-          </div>
-        )}
+        <AccountTypePicker
+          role={form.role}
+          divisionId={form.sales_division_id}
+          onChange={({ role, divisionId }) => setForm(f => ({ ...f, role, sales_division_id: divisionId }))}
+          types={ACCOUNT_TYPES}
+          divisions={divisions}
+          disabled={user?.id === selfId}
+        />
+        {user?.id === selfId && <p className="text-xs text-slate-400 -mt-2">{t('adminUsers.cannotChangeOwnRole')}</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('common.phone')}</label>
@@ -354,7 +373,7 @@ function UserFormModal({
           <label className="block text-sm font-medium text-slate-700 mb-1">{t('adminUsers.position')}</label>
           <select value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))} className={inputCls}>
             <option value="">{t('register.selectPosition')}</option>
-            {POSITIONS.map(p => <option key={p} value={p}>{t(`position.${p}` as DictKey)}</option>)}
+            {positions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
         </div>
         {!user && (
@@ -379,5 +398,7 @@ function UserFormModal({
     </Modal>
   );
 }
+
+const TYPE_COLOR: Record<string, string> = { team: '#2563eb', admin: '#0f172a', sales_admin: '#7c3aed', sales: '#16a34a' };
 
 const inputCls = 'w-full rounded-control border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-slate-50 disabled:text-slate-400';

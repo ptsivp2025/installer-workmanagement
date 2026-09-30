@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getAdminClient } from '@/lib/supabase-admin';
-import { POSITIONS } from '@/lib/constants';
+import { SELF_REGISTER_ROLES, accountTypeOf, isSalesRole, type AccountType } from '@/lib/constants';
+import { getServerSetting } from '@/lib/server-settings';
+import type { PositionOption } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,14 +12,14 @@ function getClientIp(req: NextRequest): string {
 }
 
 /**
- * Public self-registration — Sales/customer accounts only, and never a live
- * account: the row lands active = false + approval_status = 'pending', which
- * every RLS policy already reads as "no access" (018), so an unapproved
- * signup can authenticate against nothing until an admin approves it.
+ * Public self-registration, and never a live account: the row lands
+ * active = false + approval_status = 'pending', which every RLS policy
+ * already reads as "no access" (018), so an unapproved signup can
+ * authenticate against nothing until the app admin approves it.
  *
- * The role is fixed to 'sales' here rather than taken from the request:
- * accepting a client-supplied role on an unauthenticated endpoint is how
- * self-registration turns into self-promotion to admin.
+ * The role is checked against a fixed list that never includes 'admin', and
+ * against the account types the admin opened in Aturan Sistem: accepting
+ * any client-supplied role here is how sign-up turns into self-promotion.
  */
 export async function POST(request: NextRequest) {
   const supabase = getAdminClient();
@@ -30,10 +32,18 @@ export async function POST(request: NextRequest) {
     const email = String(body.email ?? '').trim();
     const phone = String(body.phone ?? '').trim();
     const position = String(body.position ?? '').trim();
-    const sales_division_id = body.sales_division_id ? String(body.sales_division_id) : null;
+    const role = String(body.role ?? 'sales');
+    const sales_division_id = isSalesRole(role) && body.sales_division_id ? String(body.sales_division_id) : null;
     const password = String(body.password ?? '');
 
-    if (!username || !full_name || !email || !phone || !position || !sales_division_id) {
+    if (!(await getServerSetting<boolean>('register.enabled'))) {
+      return NextResponse.json({ error: 'Self sign-up is closed.' }, { status: 403 });
+    }
+    const allowedTypes = await getServerSetting<AccountType[]>('register.account_types');
+    if (!(SELF_REGISTER_ROLES as readonly string[]).includes(role) || !allowedTypes.includes(accountTypeOf(role))) {
+      return NextResponse.json({ error: 'This account type cannot sign up here.' }, { status: 400 });
+    }
+    if (!username || !full_name || !email || !phone || !position || (isSalesRole(role) && !sales_division_id)) {
       return NextResponse.json({ error: 'All fields are required.' }, { status: 400 });
     }
     if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
@@ -45,7 +55,8 @@ export async function POST(request: NextRequest) {
     if (password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters.' }, { status: 400 });
     }
-    if (!(POSITIONS as readonly string[]).includes(position)) {
+    const positions = await getServerSetting<PositionOption[]>('master.positions');
+    if (!positions.some(p => p.value === position)) {
       return NextResponse.json({ error: 'Invalid position.' }, { status: 400 });
     }
 
@@ -61,9 +72,11 @@ export async function POST(request: NextRequest) {
       await supabase.from('login_attempts').insert({ username: '__register__', ip_address: ip, success: true });
     }
 
-    const { data: division } = await supabase.from('sales_divisions').select('id').eq('id', sales_division_id).eq('active', true).maybeSingle();
-    if (!division) {
-      return NextResponse.json({ error: 'Choose a valid Sales Division.' }, { status: 400 });
+    if (sales_division_id) {
+      const { data: division } = await supabase.from('sales_divisions').select('id').eq('id', sales_division_id).eq('active', true).maybeSingle();
+      if (!division) {
+        return NextResponse.json({ error: 'Choose a valid Sales Division.' }, { status: 400 });
+      }
     }
 
     const { data: existing } = await supabase.from('users').select('id').eq('username', username).maybeSingle();
@@ -75,7 +88,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .insert({
         username, full_name, email, phone, position,
-        role: 'sales',
+        role,
         sales_division_id,
         active: false,
         approval_status: 'pending',

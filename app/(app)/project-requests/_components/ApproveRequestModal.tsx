@@ -60,7 +60,7 @@ export function ApproveRequestModal({
             {/* Who will own the project, said before the button is pressed. */}
             <p className="text-xs font-semibold text-brand-700 mt-2 inline-flex items-center gap-1.5">
               <UserRound className="h-3.5 w-3.5" />
-              {t('projectRequests.salesOwnerLine', { name: [request.users?.full_name || request.users?.username, request.sales_divisions?.name].filter(Boolean).join(' · ') || '—' })}
+              {t('projectRequests.salesOwnerLine', { name: [request.owner?.full_name || request.owner?.username || request.users?.full_name || request.users?.username, request.sales_divisions?.name].filter(Boolean).join(' · ') || '—' })}
             </p>
             <p className="text-[11px] text-slate-400 mt-0.5">{t('projectRequests.salesOwnerNote')}</p>
           </div>

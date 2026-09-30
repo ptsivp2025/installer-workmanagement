@@ -1,5 +1,6 @@
 'use client';
 
+import { isSalesRole } from '@/lib/constants';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Loader2, KeyRound, UserRound, Hash, Mail, Smartphone, Briefcase, Building2, Shield, Send, CalendarDays,
@@ -9,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import { setSession } from '@/lib/auth';
 import type { AppUser } from '@/lib/types';
-import { POSITIONS } from '@/lib/constants';
+import { usePositions, positionLabel } from '@/lib/positions';
 import type { DictKey } from '@/lib/i18n';
 import { formatDate } from '@/lib/utils';
 import { isNativeApp } from '@/lib/geolocation';
@@ -36,6 +37,7 @@ function greetingKey(): DictKey {
 export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onClose: () => void; onSignOut?: () => void }) {
   const { user, setUserProfile } = useAuth();
   const { t } = useLanguage();
+  const positions = usePositions();
   const [profile, setProfile] = useState<AppUser | null>(null);
   const [counts, setCounts] = useState({ open: 0, done: 0 });
   const [form, setForm] = useState({ full_name: '', email: '', phone: '', position: '', telegram_chat_id: '' });
@@ -185,7 +187,7 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
                     <Field label={t('adminUsers.position')}>
                       <select value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))} className={inputCls}>
                         <option value="">{t('register.selectPosition')}</option>
-                        {POSITIONS.map(p => <option key={p} value={p}>{t(`position.${p}` as DictKey)}</option>)}
+                        {positions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                       </select>
                     </Field>
                     <Field label={t('profile.telegramChatId')} hint={t('profile.telegramHint')}>
@@ -205,8 +207,8 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
                     <InfoRow icon={UserRound} label={t('adminUsers.fullName')} value={profile?.full_name} emptyText={nf} />
                     <InfoRow icon={Mail} label={t('adminUsers.email')} value={profile?.email} emptyText={nf} />
                     <InfoRow icon={Smartphone} label={t('common.phone')} value={profile?.phone} emptyText={nf} />
-                    <InfoRow icon={Briefcase} label={t('adminUsers.position')} value={profile?.position ? t(`position.${profile.position}` as DictKey) : null} emptyText={nf} />
-                    {(role === 'sales' || profile?.sales_divisions) && (
+                    <InfoRow icon={Briefcase} label={t('adminUsers.position')} value={profile?.position ? positionLabel(profile.position, positions) : null} emptyText={nf} />
+                    {(isSalesRole(role) || profile?.sales_divisions) && (
                       <InfoRow icon={Building2} label={t('adminUsers.salesDivision')} value={profile?.sales_divisions?.name} emptyText={nf} />
                     )}
                     <InfoRow icon={Shield} label={t('adminUsers.role')} value={role ? t(`role.${role}` as DictKey) : null} emptyText={nf} />

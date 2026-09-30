@@ -5,6 +5,8 @@ import { getSession, verifySessionFromCookie, refreshDbTokenIfNeeded, type Sessi
 import { getStoredLang, setStoredLang, translate, type Lang, type DictKey } from '@/lib/i18n';
 import { applyThemeColor } from '@/lib/theme';
 import { setDateLocale } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { readSetting, toValues, type SettingValues } from '@/lib/settings';
 
 interface AuthContextValue {
   user: SessionUserProfile | null;
@@ -124,6 +126,40 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   setDateLocale(lang);
 
   return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
+}
+
+interface SettingsContextValue {
+  /** A rule from Admin Panel → Aturan Sistem, or its default until loaded. */
+  get: <T>(key: string) => T;
+  values: SettingValues;
+  reload: () => void;
+}
+
+const SettingsContext = createContext<SettingsContextValue>({ get: <T,>(key: string) => readSetting<T>({}, key), values: {}, reload: () => {} });
+
+export function useSettings(): SettingsContextValue {
+  return useContext(SettingsContext);
+}
+
+/**
+ * Loads app_settings once per tab (readable without login: the sign-up page
+ * needs a few) and again whenever the Admin Panel saves. Until the answer
+ * arrives every rule reads as its default, which is the old hardcoded value,
+ * so nothing waits on this.
+ */
+export function SettingsProvider({ children }: { children: React.ReactNode }) {
+  const [values, setValues] = useState<SettingValues>({});
+  const load = useCallback(() => {
+    supabase.from('app_settings').select('key, value')
+      .then((res: { data: { key: string; value: unknown }[] | null }) => { if (res.data) setValues(toValues(res.data)); });
+  }, []);
+  useEffect(() => {
+    load();
+    window.addEventListener('iwm:settings-changed', load);
+    return () => window.removeEventListener('iwm:settings-changed', load);
+  }, [load]);
+  const get = useCallback(<T,>(key: string) => readSetting<T>(values, key), [values]);
+  return <SettingsContext.Provider value={{ get, values, reload: load }}>{children}</SettingsContext.Provider>;
 }
 
 const THEME_CACHE_KEY = 'iwm_theme_primary';

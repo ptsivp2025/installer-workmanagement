@@ -3,20 +3,33 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { UserPlus, Loader2, CheckCircle2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { useLanguage } from '@/app/providers';
+import { useLanguage, useSettings } from '@/app/providers';
 import { LanguageToggle } from '@/components/shared/LanguageToggle';
-import { POSITIONS } from '@/lib/constants';
-import type { DictKey } from '@/lib/i18n';
-import { SearchableSelect } from '@/components/shared/SearchableSelect';
+import { TEAM_ROLES, isSalesRole, type AccountType } from '@/lib/constants';
+import { usePositions } from '@/lib/positions';
+import { AccountTypePicker } from '@/components/shared/AccountTypePicker';
 
 interface DivisionOption { id: string; name: string }
 
 export default function RegisterPage() {
   const { t } = useLanguage();
+  const { get } = useSettings();
+  const positions = usePositions();
+  // Admin Panel → Aturan Sistem → Akun & Login. Admin can never sign up here.
+  const open = get<boolean>('register.enabled');
+  const types = get<AccountType[]>('register.account_types').filter(x => x !== 'admin');
+  const typesKey = types.join();
   const [form, setForm] = useState({
-    full_name: '', username: '', email: '', phone: '', position: '',
+    full_name: '', username: '', email: '', phone: '', position: '', role: 'sales',
     sales_division_id: '', password: '', confirm: '',
   });
+  useEffect(() => {
+    // Start on an allowed type once the settings are known.
+    const allowed = (role: string) => types.some(x => (x === 'team' ? (TEAM_ROLES as readonly string[]) : [x]).includes(role));
+    if (types.length > 0 && !allowed(form.role)) {
+      setForm(f => ({ ...f, role: types.includes('sales') ? 'sales' : types[0] === 'team' ? 'installer' : types[0], sales_division_id: '' }));
+    }
+  }, [typesKey, form.role]); // eslint-disable-line react-hooks/exhaustive-deps
   const [divisions, setDivisions] = useState<DivisionOption[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,8 +51,9 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    const filled = form.full_name && form.username && form.email && form.phone && form.position && form.sales_division_id && form.password;
+    const filled = form.full_name && form.username && form.email && form.phone && form.position && form.password;
     if (!filled) { setError(t('register.allFieldsRequired')); return; }
+    if (isSalesRole(form.role) && !form.sales_division_id) { setError(t('account.divisionRequired')); return; }
     if (form.password !== form.confirm) { setError(t('register.passwordMismatch')); return; }
 
     setLoading(true);
@@ -91,7 +105,14 @@ export default function RegisterPage() {
         <div className="w-full max-w-md py-6">
           <div className="flex lg:hidden justify-end mb-4"><LanguageToggle /></div>
 
-          {done ? (
+          {!open ? (
+            <div className="bg-white rounded-card shadow-card border border-slate-200 p-8 text-center">
+              <p className="text-sm text-slate-600">{t('register.closed')}</p>
+              <Link href="/login" className="mt-6 inline-flex items-center gap-1.5 rounded-control bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 hover:bg-brand-700 transition">
+                <ArrowLeft className="h-4 w-4" /> {t('register.backToLogin')}
+              </Link>
+            </div>
+          ) : done ? (
             <div className="bg-white rounded-card shadow-card border border-slate-200 p-8 text-center animate-zoom-in">
               <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-3" />
               <h2 className="text-xl font-bold text-slate-900">{t('register.successTitle')}</h2>
@@ -112,6 +133,14 @@ export default function RegisterPage() {
                   <div className="rounded-control bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 animate-fade-in">{error}</div>
                 )}
 
+                <AccountTypePicker
+                  role={form.role}
+                  divisionId={form.sales_division_id}
+                  onChange={({ role, divisionId }) => setForm(f => ({ ...f, role, sales_division_id: divisionId }))}
+                  types={types}
+                  divisions={divisions}
+                />
+
                 <Field label={t('register.fullName')}>
                   <input value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} className={inputCls} required />
                 </Field>
@@ -129,22 +158,12 @@ export default function RegisterPage() {
                   </Field>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field label={t('register.position')}>
-                    <select value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))} className={inputCls} required>
-                      <option value="">{t('register.selectPosition')}</option>
-                      {POSITIONS.map(p => <option key={p} value={p}>{t(`position.${p}` as DictKey)}</option>)}
-                    </select>
-                  </Field>
-                  <Field label={t('register.salesDivision')}>
-                    <SearchableSelect
-                      value={form.sales_division_id}
-                      onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
-                      options={divisions.map(d => ({ value: d.id, label: d.name }))}
-                      placeholder={t('register.selectDivision')}
-                    />
-                  </Field>
-                </div>
+                <Field label={t('register.position')}>
+                  <select value={form.position} onChange={e => setForm(f => ({ ...f, position: e.target.value }))} className={inputCls} required>
+                    <option value="">{t('register.selectPosition')}</option>
+                    {positions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                  </select>
+                </Field>
 
                 <Field label={t('register.password')} hint={t('register.passwordHint')}>
                   <div className="relative">

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { AuthProvider, LanguageProvider, ThemeProvider } from './providers';
+import { AuthProvider, LanguageProvider, SettingsProvider, ThemeProvider } from './providers';
 
 export const metadata: Metadata = {
   title: 'Installer Work Management',
@@ -13,7 +13,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <ThemeProvider>
           <LanguageProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <SettingsProvider>
+              <AuthProvider>{children}</AuthProvider>
+            </SettingsProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

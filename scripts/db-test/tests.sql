@@ -395,6 +395,63 @@ SELECT t_check('so that Sales sees the new project straight away',
   (SELECT count(*) = 1 FROM projects WHERE code = 'PRQ-1'));
 RESET ROLE;
 
+-- Admin Sales: the whole division, and asks on a Sales Proyek's behalf.
+INSERT INTO sales_divisions (id, name, code, active) VALUES ('00000000-0000-0000-0000-0000000000d8', 'Divisi Lain', 'LAIN', true);
+INSERT INTO users (id, username, full_name, role, active, approval_status, sales_division_id) VALUES
+  ('00000000-0000-0000-0000-000000000093', 'admin_sales_uji', 'Admin Sales Uji', 'sales_admin', true, 'approved', '00000000-0000-0000-0000-0000000000d9'),
+  ('00000000-0000-0000-0000-000000000094', 'sales_lain', 'Sales Lain', 'sales', true, 'approved', '00000000-0000-0000-0000-0000000000d8');
+INSERT INTO projects (id, code, name, status, sales_user_id)
+  VALUES ('00000000-0000-0000-0000-0000000000c8', 'PL', 'Proyek Divisi Lain', 'active', '00000000-0000-0000-0000-000000000094');
+SELECT t_check('a project takes its division from its Sales Proyek',
+  (SELECT sales_division_id = '00000000-0000-0000-0000-0000000000d8' FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c8'));
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000093');
+SELECT t_check('Admin Sales sees every project of its division (both Sales Proyek)',
+  (SELECT count(*) = 2 FROM projects WHERE id IN ('00000000-0000-0000-0000-0000000000a9', '00000000-0000-0000-0000-0000000000b9')));
+SELECT t_check('and their activities', (SELECT count(*) = 3 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));
+SELECT t_check('but not another division''s project',
+  (SELECT count(*) = 0 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c8'));
+SELECT t_check('it may pick only its division''s Sales Proyek',
+  (SELECT array_agg(username ORDER BY username) = ARRAY['sales_a', 'sales_b'] FROM iwm_sales_choices()));
+SELECT t_check('Admin Sales requests a schedule for a Sales Proyek of its division',
+  t_changed($q$ INSERT INTO project_requests (requested_by, sales_division_id, project_name, status, sales_user_id)
+    VALUES ('00000000-0000-0000-0000-000000000093', '00000000-0000-0000-0000-0000000000d9', 'Diajukan Admin Sales', 'pending', '00000000-0000-0000-0000-000000000092') $q$) = 1);
+SELECT t_raises('but not for a Sales Proyek of another division',
+  $q$ INSERT INTO project_requests (requested_by, sales_division_id, project_name, status, sales_user_id)
+    VALUES ('00000000-0000-0000-0000-000000000093', '00000000-0000-0000-0000-0000000000d9', 'Salah divisi', 'pending', '00000000-0000-0000-0000-000000000094') $q$);
+SELECT t_raises('and not without naming one',
+  $q$ INSERT INTO project_requests (requested_by, sales_division_id, project_name, status)
+    VALUES ('00000000-0000-0000-0000-000000000093', '00000000-0000-0000-0000-0000000000d9', 'Tanpa Sales', 'pending') $q$);
+SELECT t_as('00000000-0000-0000-0000-000000000092');
+SELECT t_check('the Sales Proyek it was requested for sees the request',
+  (SELECT count(*) = 1 FROM project_requests WHERE project_name = 'Diajukan Admin Sales'));
+SELECT t_as('00000000-0000-0000-0000-000000000091');
+SELECT t_check('a different Sales Proyek of the same division does not',
+  (SELECT count(*) = 0 FROM project_requests WHERE project_name = 'Diajukan Admin Sales'));
+SELECT t_check('a Sales Proyek may pick only itself', (SELECT array_agg(username) = ARRAY['sales_a'] FROM iwm_sales_choices()));
+SELECT t_as('00000000-0000-0000-0000-000000000001');
+SELECT set_config('t.prq2', iwm_approve_project_request(
+  (SELECT id FROM project_requests WHERE project_name = 'Diajukan Admin Sales'), 'PRQ-2') ->> 'project_id', false);
+SELECT t_check('approving it makes that Sales Proyek the owner, not the Admin Sales',
+  (SELECT sales_user_id = '00000000-0000-0000-0000-000000000092' FROM projects WHERE id = current_setting('t.prq2')::uuid));
+SELECT t_as('00000000-0000-0000-0000-000000000093');
+SELECT t_check('Admin Sales counts as vendor side for every Sales guard', is_sales() AND NOT is_staff());
+RESET ROLE;
+
+-- Settings replace hardcoded rules.
+SELECT t_check('an unset setting falls back to the default', setting_num('gps.jump_max_m', 300) = 300);
+INSERT INTO app_settings (key, value) VALUES ('gps.jump_max_m', '500') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+SELECT t_check('a saved setting is what the checks use', setting_num('gps.jump_max_m', 300) = 500);
+INSERT INTO app_settings (key, value) VALUES ('gps.blocking_flags', '["mock_provider"]') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+SELECT t_check('the list of blocking Fake GPS signals is a setting too',
+  iwm_gps_blocking(ARRAY['mock_provider', 'sample_jump']) = ARRAY['mock_provider']);
+DELETE FROM app_settings WHERE key IN ('gps.jump_max_m', 'gps.blocking_flags');
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-0000000000a1');
+SELECT t_raises('only an admin may change settings',
+  $q$ INSERT INTO app_settings (key, value) VALUES ('x.y', '1') $q$);
+RESET ROLE;
+
 -- ── result ─────────────────────────────────────────────────────────────────
 DO $$
 BEGIN

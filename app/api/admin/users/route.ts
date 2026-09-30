@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { getSessionUser } from '@/lib/server-auth';
-import { ROLES } from '@/lib/constants';
+import { ROLES, isSalesRole } from '@/lib/constants';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   if (!ROLES.includes(role)) {
     return NextResponse.json({ error: 'Invalid role.' }, { status: 400 });
   }
-  if (role === 'sales' && !sales_division_id) {
+  if (isSalesRole(role) && !sales_division_id) {
     return NextResponse.json({ error: 'A Sales Division user needs a division assigned.' }, { status: 400 });
   }
 
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     .insert({
       username: username.trim(), full_name: full_name.trim(), role,
       phone: phone?.trim() || null, email: email?.trim() || null, position: position?.trim() || null,
-      sales_division_id: role === 'sales' ? sales_division_id : null,
+      sales_division_id: isSalesRole(role) ? sales_division_id : null,
     })
     .select()
     .single();

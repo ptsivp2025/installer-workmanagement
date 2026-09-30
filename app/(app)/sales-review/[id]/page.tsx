@@ -1,5 +1,6 @@
 'use client';
 
+import { isSalesRole } from '@/lib/constants';
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -63,7 +64,7 @@ export default function SalesReviewDetailPage() {
   if (error || !review) return <ErrorState message={error ?? t('salesReview.notFound')} onRetry={load} />;
 
   const activity = review.activities!;
-  const canSubmit = user?.role === 'sales' && review.status === 'pending';
+  const canSubmit = isSalesRole(user?.role) && review.status === 'pending';
 
   return (
     <div className="max-w-2xl mx-auto">

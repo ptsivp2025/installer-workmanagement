@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAdminClient } from '@/lib/supabase-admin';
 import { issueDbToken } from '@/lib/db-token';
-import { APP_SESSION_HOURS, isNativeAppRequest, setSessionCookie } from '@/lib/server-auth';
+import { appSessionHours, isNativeAppRequest, setSessionCookie } from '@/lib/server-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,12 +49,13 @@ export async function GET(request: NextRequest) {
   // so it only ever ends by an explicit logout or a deactivated account.
   // This also lifts sessions created before the app got its longer lifetime.
   if (isNativeAppRequest(request)) {
-    const renewedUntil = Date.now() + APP_SESSION_HOURS * 3600 * 1000;
+    const appHours = await appSessionHours();
+    const renewedUntil = Date.now() + appHours * 3600 * 1000;
     if (renewedUntil - new Date(session.expires_at).getTime() > DAY_MS) {
       const { error } = await supabase.from('user_sessions')
         .update({ expires_at: new Date(renewedUntil).toISOString() })
         .eq('token_hash', tokenHash);
-      if (!error) setSessionCookie(response, token, APP_SESSION_HOURS);
+      if (!error) setSessionCookie(response, token, appHours);
     }
   }
 

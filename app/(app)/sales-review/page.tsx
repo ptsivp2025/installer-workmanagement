@@ -4,19 +4,22 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { RefreshCw, Star } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useLanguage } from '@/app/providers';
+import { useLanguage, useSettings } from '@/app/providers';
 import type { SalesReview } from '@/lib/types';
 import { formatDateTime, errorMessage, ilikeAny } from '@/lib/utils';
 import { useSessionState, useDebouncedValue } from '@/lib/useListState';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SearchInput } from '@/components/shared/SearchInput';
+import type { DictKey } from '@/lib/i18n';
+import { MiniDonut, STATUS_COLOR } from '@/components/shared/MiniDonut';
 import { Pagination } from '@/components/shared/Pagination';
 import { LoadingState, ErrorState, EmptyState } from '@/components/shared/States';
 
-const PAGE_SIZE = 15;
 
 export default function SalesReviewPage() {
   const { t } = useLanguage();
+  // Admin Panel → Aturan Sistem → Tampilan & Notifikasi.
+  const PAGE_SIZE = useSettings().get<number>('list.page_size');
   const [reviews, setReviews] = useState<SalesReview[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useSessionState('salesReview.page', 1);
@@ -25,6 +28,7 @@ export default function SalesReviewPage() {
   const debouncedSearch = useDebouncedValue(search);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +49,13 @@ export default function SalesReviewPage() {
 
       const { data, error: err, count } = await query;
       if (err) throw err;
+      // The donut: every status under the same search, not just this page.
+      const counts = await Promise.all((['pending', 'submitted'] as const).map(s => {
+        let q = supabase.from('sales_reviews').select('id, activities!inner(id)', { count: 'exact', head: true }).eq('status', s);
+        if (searchFilter) q = q.or(searchFilter, { foreignTable: 'activities' });
+        return q.then(({ count: n }: { count: number | null }) => [s, n ?? 0] as const);
+      }));
+      setStatusCounts(Object.fromEntries(counts));
       setReviews((data as unknown as SalesReview[]) ?? []);
       setTotal(count ?? 0);
       if (page > 1 && (data ?? []).length === 0 && (count ?? 0) > 0) setPage(1);
@@ -53,7 +64,7 @@ export default function SalesReviewPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, status, t, setPage]);
+  }, [page, debouncedSearch, status, t, setPage, PAGE_SIZE]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -75,6 +86,14 @@ export default function SalesReviewPage() {
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+
+      <MiniDonut
+        className="mb-4"
+        title={t('salesReview.title')}
+        active={status}
+        onPick={k => { setStatus(status === k ? '' : k); setPage(1); }}
+        items={(['pending', 'submitted'] as const).map(s => ({ key: s, label: t(`status.${s}` as DictKey), count: statusCounts[s] ?? 0, color: STATUS_COLOR[s] }))}
+      />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (

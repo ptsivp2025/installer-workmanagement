@@ -15,6 +15,7 @@ import { NotificationsSection } from './NotificationsSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { AuditLogSection } from './AuditLogSection';
 import { AndroidAppSection } from './AndroidAppSection';
+import { SystemRulesSection } from './SystemRulesSection';
 import type { AdminTab } from './types';
 import type { DictKey } from '@/lib/i18n';
 
@@ -27,6 +28,7 @@ const TAB_LABEL: Record<AdminTab, DictKey> = {
   integrations: 'admin.tab.integrations',
   'audit-log': 'admin.tab.auditLog',
   'android-app': 'admin.tab.androidApp',
+  rules: 'admin.tab.rules',
 };
 
 /**
@@ -93,6 +95,7 @@ export function AdminPanelModal({ open, onClose }: { open: boolean; onClose: () 
             {tab === 'notifications' && <NotificationsSection />}
             {tab === 'audit-log' && <AuditLogSection />}
             {tab === 'android-app' && <AndroidAppSection />}
+            {tab === 'rules' && <SystemRulesSection />}
             {tab === 'integrations' && <IntegrationsSection onOpenNotifications={() => selectTab('notifications')} />}
           </div>
         </div>

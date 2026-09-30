@@ -1,24 +1,26 @@
 import type { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getAdminClient } from './supabase-admin';
-
-// Browser: 30 days from login, so office staff don't sign in every morning.
-// Android app: a year, renewed on every launch by /api/auth/session — an
-// installer who keeps using the app is never sent back to the login screen
-// (a surprise logout reads as "the app is broken" to someone not at home
-// with phones). Deactivating the account still ends access on the very next
-// request: getSessionUser, /api/auth/session and every RLS policy re-check
-// users.active live.
-export const WEB_SESSION_HOURS = 24 * 30;
-export const APP_SESSION_HOURS = 24 * 365;
+import { getServerSetting } from './server-settings';
 
 /** The Android app appends " IWMApp/<version>" to the WebView user agent (android/…/MainActivity.java). */
 export function isNativeAppRequest(request: NextRequest): boolean {
   return (request.headers.get('user-agent') ?? '').includes(' IWMApp/');
 }
 
-export function sessionHoursFor(request: NextRequest): number {
-  return isNativeAppRequest(request) ? APP_SESSION_HOURS : WEB_SESSION_HOURS;
+// How long a login lasts, from Admin Panel → Aturan Sistem → Akun & Login.
+// Browser: 30 days by default, so office staff don't sign in every morning.
+// Android app: a year by default, renewed on every launch by
+// /api/auth/session — an installer who keeps using the app is never sent
+// back to the login screen. Deactivating the account still ends access on
+// the very next request: getSessionUser, /api/auth/session and every RLS
+// policy re-check users.active live.
+export async function appSessionHours(): Promise<number> {
+  return 24 * await getServerSetting<number>('session.app_days');
+}
+
+export async function sessionHoursFor(request: NextRequest): Promise<number> {
+  return 24 * await getServerSetting<number>(isNativeAppRequest(request) ? 'session.app_days' : 'session.web_days');
 }
 
 /**

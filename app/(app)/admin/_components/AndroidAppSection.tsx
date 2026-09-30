@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Upload, Loader2, Smartphone, ListChecks, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useLanguage } from '@/app/providers';
+import { useLanguage, useSettings } from '@/app/providers';
 import { formatDateTime, errorMessage } from '@/lib/utils';
 import { APP_RELEASE_BUCKET, APP_RELEASE_FILE } from '@/lib/app-release';
 import { LoadingState } from '@/components/shared/States';
@@ -19,7 +19,6 @@ interface Release {
   require_native_app: boolean | null;
 }
 
-const MAX_BYTES = 50 * 1024 * 1024;
 
 /**
  * Admin Panel → Aplikasi Android: publish a new APK and download the current
@@ -30,6 +29,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
  */
 export function AndroidAppSection() {
   const { t } = useLanguage();
+  const { get } = useSettings();
   const [release, setRelease] = useState<Release | null>(null);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState<File | null>(null);
@@ -55,7 +55,7 @@ export function AndroidAppSection() {
     setMessage(null);
     const current = release?.app_version_code ?? 0;
     const code = parseInt(form.code, 10);
-    if (!file || !file.name.toLowerCase().endsWith('.apk') || file.size > MAX_BYTES) { setMessage({ ok: false, text: t('app.errFile') }); return; }
+    if (!file || !file.name.toLowerCase().endsWith('.apk') || file.size > get<number>('app.max_apk_mb') * 1024 * 1024) { setMessage({ ok: false, text: t('app.errFile') }); return; }
     if (!form.name.trim()) { setMessage({ ok: false, text: t('app.errName') }); return; }
     if (!Number.isFinite(code) || code <= current) { setMessage({ ok: false, text: t('app.errVersion', { n: current }) }); return; }
 

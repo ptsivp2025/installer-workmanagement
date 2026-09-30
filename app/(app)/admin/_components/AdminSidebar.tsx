@@ -1,6 +1,6 @@
 'use client';
 
-import { Layers, Users, Building2, Palette, Bell, Plug, History, Smartphone } from 'lucide-react';
+import { Layers, Users, Building2, Palette, Bell, Plug, History, Smartphone, SlidersHorizontal } from 'lucide-react';
 import { useLanguage } from '@/app/providers';
 import type { DictKey } from '@/lib/i18n';
 import type { AdminTab } from './types';
@@ -13,6 +13,13 @@ const GROUPS: { labelKey: DictKey; items: { tab: AdminTab; labelKey: DictKey; ic
       { tab: 'users', labelKey: 'admin.tab.users', icon: Users },
       { tab: 'sales-divisions', labelKey: 'admin.tab.salesDivisions', icon: Building2 },
       { tab: 'android-app', labelKey: 'admin.tab.androidApp', icon: Smartphone },
+    ],
+  },
+  {
+    // Business rules that used to be hardcoded (030).
+    labelKey: 'admin.group.rules',
+    items: [
+      { tab: 'rules', labelKey: 'admin.tab.rules', icon: SlidersHorizontal },
     ],
   },
   {

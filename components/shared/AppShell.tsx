@@ -7,9 +7,9 @@ import {
   LayoutDashboard, CalendarClock, ClipboardCheck, FolderKanban, Settings, Star, MoreHorizontal, Inbox, Search,
   BarChart3, CloudOff, Download, Bell, CalendarDays, AlertTriangle, LogOut, Repeat2,
 } from 'lucide-react';
-import { useAuth, useLanguage } from '@/app/providers';
+import { useAuth, useLanguage, useSettings } from '@/app/providers';
 import { clearSession, type SessionUserProfile } from '@/lib/auth';
-import { peekToday, peekOverdue, peekFormReview, peekProjectRequests, peekSalesReview, peekAccounts, type PeekItem } from '@/lib/peek';
+import { peekToday, peekOverdue, peekFormReview, peekProjectRequests, peekSalesReview, peekAccounts, setPeekLimit, type PeekItem } from '@/lib/peek';
 import { supabase } from '@/lib/supabase';
 import { useNavBadges, type NavBadgeCounts } from '@/lib/notification-badges';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
@@ -47,20 +47,22 @@ interface NavItem {
 }
 
 const STAFF: Role[] = ['admin', 'supervisor', 'reviewer'];
+/** Vendor side: Admin Sales and Sales Proyek. */
+const VENDOR: Role[] = ['sales_admin', 'sales'];
 
 // Order inside each group follows the work: today's schedule first, then the
 // projects it belongs to; review before reporting.
 const NAV: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, group: 'work', roles: ['admin', 'supervisor', 'reviewer', 'installer', 'sales'] },
+  { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, group: 'work', roles: ['admin', 'supervisor', 'reviewer', 'installer', 'sales_admin', 'sales'] },
   // Projects first: a project is the parent, activities hang under it.
-  { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban, group: 'work', roles: ['admin', 'supervisor', 'reviewer', 'installer', 'sales'] },
-  { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock, group: 'work', roles: [...STAFF, 'installer'], badgeKey: 'today' },
+  { href: '/projects', labelKey: 'nav.projects', icon: FolderKanban, group: 'work', roles: ['admin', 'supervisor', 'reviewer', 'installer', 'sales_admin', 'sales'] },
+  { href: '/request-schedule', labelKey: 'nav.requestSchedule', icon: CalendarClock, group: 'work', roles: [...STAFF, 'installer', 'sales_admin'], badgeKey: 'today' },
   { href: '/form-review', labelKey: 'nav.formReview', icon: ClipboardCheck, group: 'review', roles: STAFF, badgeKey: 'formReview' },
-  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: BarChart3, group: 'review', roles: [...STAFF, 'sales'] },
+  { href: '/project-progress', labelKey: 'nav.projectProgress', icon: BarChart3, group: 'review', roles: [...STAFF, ...VENDOR] },
   // The record behind billing the installer for a repeat visit (029).
-  { href: '/demo-recap', labelKey: 'nav.demoRecap', icon: Repeat2, group: 'review', roles: [...STAFF, 'sales'] },
-  { href: '/project-requests', labelKey: 'nav.projectRequests', icon: Inbox, group: 'sales', roles: ['admin', 'supervisor', 'sales'], badgeKey: 'projectRequests' },
-  { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star, group: 'sales', roles: [...STAFF, 'sales'], badgeKey: 'salesReview' },
+  { href: '/demo-recap', labelKey: 'nav.demoRecap', icon: Repeat2, group: 'review', roles: [...STAFF, ...VENDOR] },
+  { href: '/project-requests', labelKey: 'nav.projectRequests', icon: Inbox, group: 'sales', roles: ['admin', 'supervisor', ...VENDOR], badgeKey: 'projectRequests' },
+  { href: '/sales-review', labelKey: 'nav.salesReview', icon: Star, group: 'sales', roles: [...STAFF, ...VENDOR], badgeKey: 'salesReview' },
   { href: '#admin', labelKey: 'nav.adminPanel', icon: Settings, group: 'system', roles: ['admin'], modal: true, badgeKey: 'registrations' },
 ];
 
@@ -69,6 +71,7 @@ const NAV: NavItem[] = [
 const PHONE_TABS: Record<string, string[]> = {
   installer: ['/dashboard', '/projects', '/request-schedule'],
   sales: ['/dashboard', '/projects', '/project-requests', '/sales-review'],
+  sales_admin: ['/dashboard', '/projects', '/request-schedule', '/project-requests'],
   staff: ['/dashboard', '/projects', '/request-schedule', '/form-review'],
 };
 
@@ -118,7 +121,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // underneath; close the popup so the page is actually visible.
   useEffect(() => { setAdminOpen(false); setMoreOpen(false); }, [pathname]);
 
-  const badges = useNavBadges(user);
+  const { get: setting } = useSettings();
+  const badges = useNavBadges(user, setting<number>('notif.poll_seconds') * 1000);
+  useEffect(() => { setPeekLimit(setting<number>('peek.limit')); }, [setting]);
   const online = useOnlineStatus();
   const [appVersion, setAppVersion] = useState<string | null>(null);
   useEffect(() => { if (canCheckAppUpdate()) setAppVersion(nativeAppVersion()); }, []);
@@ -127,7 +132,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const role = user.role as Role;
   const items = NAV.filter(i => i.roles.includes(role));
-  const tabHrefs = PHONE_TABS[role === 'installer' || role === 'sales' ? role : 'staff'];
+  const tabHrefs = PHONE_TABS[role in PHONE_TABS ? role : 'staff'];
   const tabs = items.filter(i => tabHrefs.includes(i.href));
   const more = items.filter(i => !tabHrefs.includes(i.href));
 
@@ -343,7 +348,7 @@ function TopBar({ platformName, companyName, logoUrl, user, badges, onSearch, on
     if (staff && badges.overdue > 0) groups.push(peekOverdue().then(items => ({ label: 'shell.notif.overdue' as DictKey, items })));
     if (reviewer && badges.formReview > 0) groups.push(peekFormReview().then(items => ({ label: 'shell.notif.formReview' as DictKey, items })));
     if (staff && badges.projectRequests > 0) groups.push(peekProjectRequests().then(items => ({ label: 'shell.notif.projectRequests' as DictKey, items })));
-    if (role === 'sales' && badges.salesReview > 0) groups.push(peekSalesReview().then(items => ({ label: 'shell.notif.salesReview' as DictKey, items })));
+    if ((role === 'sales' || role === 'sales_admin') && badges.salesReview > 0) groups.push(peekSalesReview().then(items => ({ label: 'shell.notif.salesReview' as DictKey, items })));
     return (await Promise.all(groups)).filter(g => g.items.length > 0);
   }
 

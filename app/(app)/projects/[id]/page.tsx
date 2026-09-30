@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package, Repeat2, UserRound, UserX } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
@@ -12,8 +12,10 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { ProjectFormModal } from '../_components/ProjectFormModal';
 import { BackButton } from '@/components/shared/BackButton';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 
 export default function ProjectDetailPage() {
+  const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -124,6 +126,7 @@ export default function ProjectDetailPage() {
                 <Pencil className="h-3.5 w-3.5" /> {t('common.edit')}
               </button>
             )}
+            <DeleteButton kind="project" id={project.id} name={project.name} variant="button" onDeleted={() => router.replace('/projects')} />
           </div>
         </div>
 

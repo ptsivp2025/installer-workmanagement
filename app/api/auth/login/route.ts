@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
     await supabase.from('login_attempts').insert({ username: attemptKey, ip_address: ip, success: true });
     supabase.from('user_sessions').delete().lt('expires_at', new Date().toISOString()).then(() => {});
 
-    const sessionHours = sessionHoursFor(request);
+    const sessionHours = await sessionHoursFor(request);
     const sessionToken = crypto.randomUUID() + '-' + crypto.randomUUID();
     const expiresAt = new Date(Date.now() + sessionHours * 3600 * 1000).toISOString();
 

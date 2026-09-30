@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, MapPin, RefreshCw, UserRound, UserX } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth, useLanguage } from '@/app/providers';
+import { useAuth, useLanguage, useSettings } from '@/app/providers';
 import type { Project } from '@/lib/types';
 import { PROJECT_STATUSES } from '@/lib/constants';
 import { formatDate, errorMessage, ilikeAny } from '@/lib/utils';
@@ -14,13 +14,16 @@ import { SearchInput } from '@/components/shared/SearchInput';
 import { Pagination } from '@/components/shared/Pagination';
 import { SkeletonList, ErrorState, EmptyState } from '@/components/shared/States';
 import { ProjectFormModal } from './_components/ProjectFormModal';
+import { MiniDonut, STATUS_COLOR } from '@/components/shared/MiniDonut';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 import type { DictKey } from '@/lib/i18n';
 
-const PAGE_SIZE = 15;
 
 export default function ProjectsPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  // Admin Panel → Aturan Sistem → Tampilan & Notifikasi.
+  const PAGE_SIZE = useSettings().get<number>('list.page_size');
   const [projects, setProjects] = useState<Project[]>([]);
   const [counts, setCounts] = useState<Record<string, { total: number; completed: number }>>({});
   const [total, setTotal] = useState(0);
@@ -31,6 +34,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -49,6 +53,13 @@ export default function ProjectsPage() {
       const { data, error: err, count } = await query;
       if (err) throw err;
       setProjects((data as Project[]) ?? []);
+      // The donut: projects per status under the same search, not just this page.
+      const counts = await Promise.all(PROJECT_STATUSES.map(s => {
+        let q = supabase.from('projects').select('id', { count: 'exact', head: true }).eq('status', s);
+        if (searchFilter) q = q.or(searchFilter);
+        return q.then(({ count: n }: { count: number | null }) => [s, n ?? 0] as const);
+      }));
+      setStatusCounts(Object.fromEntries(counts));
       setTotal(count ?? 0);
       if (page > 1 && (data ?? []).length === 0 && (count ?? 0) > 0) setPage(1);
 
@@ -70,7 +81,7 @@ export default function ProjectsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, status, t, setPage]);
+  }, [page, debouncedSearch, status, t, setPage, PAGE_SIZE]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -100,6 +111,14 @@ export default function ProjectsPage() {
           <RefreshCw className="h-4 w-4" />
         </button>
       </div>
+
+      <MiniDonut
+        className="mb-4"
+        title={t('nav.projects')}
+        active={status}
+        onPick={k => { setStatus(status === k ? '' : k); setPage(1); }}
+        items={PROJECT_STATUSES.map(s => ({ key: s, label: t(`status.${s}` as DictKey), count: statusCounts[s] ?? 0, color: STATUS_COLOR[s] }))}
+      />
 
       <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (
@@ -142,6 +161,7 @@ export default function ProjectsPage() {
                     </div>
                     <div className="hidden sm:block text-sm text-slate-400 w-28 shrink-0">{formatDate(p.expected_completion)}</div>
                     <StatusBadge status={p.status} />
+                    <DeleteButton kind="project" id={p.id} name={p.name} onDeleted={load} />
                   </Link>
                 );
               })}

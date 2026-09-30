@@ -1,5 +1,6 @@
 'use client';
 
+import { isSalesRole } from '@/lib/constants';
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, RefreshCw, Check, X, MapPin, ArrowRight } from 'lucide-react';
@@ -12,11 +13,24 @@ import { LoadingState, ErrorState, EmptyState, SkeletonList } from '@/components
 import { ProjectRequestFormModal } from './_components/ProjectRequestFormModal';
 import { ApproveRequestModal } from './_components/ApproveRequestModal';
 import { useDialog } from '@/components/shared/ConfirmDialog';
+import { DeleteButton } from '@/components/shared/DeleteButton';
+import { MiniDonut, STATUS_COLOR } from '@/components/shared/MiniDonut';
+import { PROJECT_REQUEST_STATUSES } from '@/lib/constants';
+import type { DictKey } from '@/lib/i18n';
+
+/** Pending / approved / rejected, as a filterable donut. */
+function StatusSummary({ rows, active, onPick }: { rows: ProjectRequest[]; active: string; onPick: (k: string) => void }) {
+  const { t } = useLanguage();
+  return (
+    <MiniDonut className="mb-4" title={t('nav.projectRequests')} active={active} onPick={onPick}
+      items={PROJECT_REQUEST_STATUSES.map(s => ({ key: s, label: t(`status.${s}` as DictKey), count: rows.filter(r => r.status === s).length, color: STATUS_COLOR[s] }))} />
+  );
+}
 
 export default function ProjectRequestsPage() {
   const { user } = useAuth();
   if (!user) return <LoadingState />;
-  return user.role === 'sales' ? <SalesRequestList /> : <StaffRequestQueue />;
+  return isSalesRole(user.role) ? <SalesRequestList /> : <StaffRequestQueue />;
 }
 
 // ── Sales: submit + track own requests ─────────────────────────────────────
@@ -26,13 +40,14 @@ function SalesRequestList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: err } = await supabase
       .from('project_requests')
-      .select('*, activity_categories(name)')
+      .select('*, activity_categories(name), users!project_requests_requested_by_fkey(full_name, username), owner:users!project_requests_sales_user_id_fkey(full_name, username)')
       .order('created_at', { ascending: false });
     if (err) setError(errorMessage(err, t('projectRequests.loadFailed')));
     else setRequests((data as ProjectRequest[]) ?? []);
@@ -53,6 +68,8 @@ function SalesRequestList() {
         </button>
       </div>
 
+      {!loading && requests.length > 0 && <StatusSummary rows={requests} active={statusFilter} onPick={k => setStatusFilter(v => (v === k ? '' : k))} />}
+
       <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (
           <SkeletonList rows={4} />
@@ -62,12 +79,16 @@ function SalesRequestList() {
           <EmptyState title={t('projectRequests.noneYet')} description={t('projectRequests.noneYetDesc')} />
         ) : (
           <div className="divide-y divide-slate-100">
-            {requests.map(r => (
+            {requests.filter(r => !statusFilter || r.status === statusFilter).map(r => (
               <div key={r.id} className="stagger-item flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3.5">
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-slate-900 truncate">{r.project_name}</p>
                   <p className="text-xs text-slate-500 truncate">
                     {r.customer_name}{r.activity_categories?.name ? ` · ${r.activity_categories.name}` : ''} · {formatDate(r.created_at)}
+                  </p>
+                  <p className="text-xs text-slate-500 truncate">
+                    {t('projects.salesOwner')}: <b className="font-semibold text-slate-700">{r.owner?.full_name ?? r.owner?.username ?? '—'}</b>
+                    {r.users && r.requested_by !== r.sales_user_id && ` · ${t('projectRequests.requestedBy')} ${r.users.full_name ?? r.users.username}`}
                   </p>
                   {r.status === 'rejected' && r.rejection_reason && (
                     <p className="text-xs text-red-600 mt-0.5">{t('projectRequests.rejectionReason')}: {r.rejection_reason}</p>
@@ -95,13 +116,14 @@ function StaffRequestQueue() {
   const [error, setError] = useState<string | null>(null);
   const [approving, setApproving] = useState<ProjectRequest | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const { data, error: err } = await supabase
       .from('project_requests')
-      .select('*, users!project_requests_requested_by_fkey(full_name, username), sales_divisions(name), activity_categories(name)')
+      .select('*, users!project_requests_requested_by_fkey(full_name, username), sales_divisions(name), activity_categories(name), owner:users!project_requests_sales_user_id_fkey(full_name, username)')
       .order('created_at', { ascending: false })
       .limit(100);
     if (err) setError(errorMessage(err, t('projectRequests.loadFailed')));
@@ -124,8 +146,9 @@ function StaffRequestQueue() {
     load();
   }
 
-  const pending = requests.filter(r => r.status === 'pending');
-  const decided = requests.filter(r => r.status !== 'pending');
+  const shown = requests.filter(r => !statusFilter || r.status === statusFilter);
+  const pending = shown.filter(r => r.status === 'pending');
+  const decided = shown.filter(r => r.status !== 'pending');
 
   return (
     <div>
@@ -147,6 +170,7 @@ function StaffRequestQueue() {
         <EmptyState title={t('projectRequests.noneYet')} description={t('projectRequests.noneYetDescStaff')} />
       ) : (
         <div className="space-y-6">
+          <StatusSummary rows={requests} active={statusFilter} onPick={k => setStatusFilter(v => (v === k ? '' : k))} />
           {pending.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-slate-700 mb-2">{t('projectRequests.pendingSection')} ({pending.length})</h2>
@@ -159,6 +183,7 @@ function StaffRequestQueue() {
                         {r.customer_name && `${r.customer_name} · `}
                         {r.sales_divisions?.name} · {t('projectRequests.requestedBy')} {r.users?.full_name ?? r.users?.username}
                       </p>
+                      <p className="text-xs font-semibold text-brand-700 mt-0.5">{t('projectRequests.salesOwnerLine', { name: r.owner?.full_name ?? r.owner?.username ?? '—' })}</p>
                       {r.address && (
                         <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" /> {r.address}</p>
                       )}
@@ -179,6 +204,7 @@ function StaffRequestQueue() {
                       >
                         <Check className="h-3.5 w-3.5" /> {t('projectRequests.approve')}
                       </button>
+                      <DeleteButton kind="project_request" id={r.id} name={r.project_name} onDeleted={load} />
                     </div>
                   </div>
                 ))}
@@ -194,7 +220,7 @@ function StaffRequestQueue() {
                   <div key={r.id} className="flex items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-slate-800 truncate">{r.project_name}</p>
-                      <p className="text-xs text-slate-400 truncate">{r.sales_divisions?.name} · {formatDate(r.created_at)}</p>
+                      <p className="text-xs text-slate-400 truncate">{r.sales_divisions?.name} · {r.owner?.full_name ?? r.owner?.username ?? '—'} · {formatDate(r.created_at)}</p>
                     </div>
                     {r.status === 'approved' && r.resulting_project_id && (
                       <button
@@ -205,6 +231,7 @@ function StaffRequestQueue() {
                       </button>
                     )}
                     <StatusBadge status={r.status} />
+                    <DeleteButton kind="project_request" id={r.id} name={r.project_name} onDeleted={load} />
                   </div>
                 ))}
               </div>

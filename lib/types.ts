@@ -124,7 +124,10 @@ export interface ProjectRequest {
   rejection_reason: string | null;
   resulting_project_id: string | null;
   created_at: string;
+  /** The Sales Proyek the request is for (030); the project will be theirs. */
+  sales_user_id: string | null;
   users?: { full_name: string | null; username: string } | null;
+  owner?: { full_name: string | null; username: string } | null;
   sales_divisions?: { name: string } | null;
   activity_categories?: { name: string } | null;
 }

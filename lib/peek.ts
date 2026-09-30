@@ -22,7 +22,10 @@ export interface PeekItem {
 }
 
 const OPEN = ['scheduled', 'in_progress'];
-const LIMIT = 12;
+// Items per panel: Admin Panel → Aturan Sistem → Tampilan & Notifikasi
+// (set by AppShell from the settings; 12 until they load).
+let LIMIT = 12;
+export function setPeekLimit(n: number): void { if (Number.isFinite(n) && n > 0) LIMIT = n; }
 const STATUS_COLOR: Record<string, string> = { scheduled: '#64748b', in_progress: '#2a78d6' };
 
 interface ActRow {

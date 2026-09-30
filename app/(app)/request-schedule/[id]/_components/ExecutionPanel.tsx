@@ -6,14 +6,11 @@ import { supabase } from '@/lib/supabase';
 import { captureGeolocationSamples, geoErrorKey, type GeoReading, type GeoSample } from '@/lib/geolocation';
 import { haversineMeters, formatDistance, errorMessage } from '@/lib/utils';
 import type { Activity } from '@/lib/types';
-import { useLanguage } from '@/app/providers';
+import { useLanguage, useSettings } from '@/app/providers';
 import type { Lang } from '@/lib/i18n';
 import { translate } from '@/lib/i18n';
 import { GpsCompareMap } from '@/components/shared/GpsCompareMap';
 
-// Older readings are re-taken automatically on Complete (the server's own
-// limit is 15 minutes, migration 026; this leaves room for a slow capture).
-const READING_MAX_AGE_MS = 10 * 60 * 1000;
 
 export function ExecutionPanel({
   activity, targetLat, targetLng, canAct, onChanged, evidenceCount, personnelCount,
@@ -22,6 +19,13 @@ export function ExecutionPanel({
   evidenceCount: number; personnelCount: number;
 }) {
   const { t, lang } = useLanguage();
+  const { get } = useSettings();
+  // Admin Panel → Aturan Sistem → GPS Lapangan. Older readings are re-taken
+  // automatically on Complete (keep this below the server's challenge
+  // lifetime, gps.challenge_minutes).
+  const sampleCount = get<number>('gps.samples');
+  const sampleGap = get<number>('gps.sample_gap_ms');
+  const readingMaxAgeMs = get<number>('gps.reading_max_age_min') * 60 * 1000;
   const category = activity.activity_categories;
   const [reading, setReading] = useState<GeoReading | null>(null);
   const [capturedAt, setCapturedAt] = useState<number | null>(null);
@@ -51,13 +55,13 @@ export function ExecutionPanel({
     ...(requiresTeam ? [{ key: 'team', ok: personnelCount > 0, label: t('execution.reqTeam'), href: '#personnel' }] : []),
   ];
 
-  /** One GPS capture (4 readings under a fresh server challenge); null if it failed. */
+  /** One GPS capture (several readings under a fresh server challenge); null if it failed. */
   async function capture(): Promise<{ best: GeoReading; samples: GeoSample[] } | null> {
     setCapturing(true);
     setCaptureError(null);
     setBlockReason(null);
-    setCaptureProgress({ done: 0, total: 4 });
-    const { best, samples: s, error } = await captureGeolocationSamples(4, 1300, (done, total) => setCaptureProgress({ done, total }));
+    setCaptureProgress({ done: 0, total: sampleCount });
+    const { best, samples: s, error } = await captureGeolocationSamples(sampleCount, sampleGap, (done, total) => setCaptureProgress({ done, total }));
     setCapturing(false);
     setCaptureProgress(null);
     if (error || !best) {
@@ -88,8 +92,8 @@ export function ExecutionPanel({
     let series: GeoSample[] = [];
     if (requiresGps) {
       setCapturing(true);
-      setCaptureProgress({ done: 0, total: 4 });
-      const r = await captureGeolocationSamples(4, 1300, (done, total) => setCaptureProgress({ done, total }));
+      setCaptureProgress({ done: 0, total: sampleCount });
+      const r = await captureGeolocationSamples(sampleCount, sampleGap, (done, total) => setCaptureProgress({ done, total }));
       setCapturing(false);
       setCaptureProgress(null);
       if (r.error || !r.best) { setBusy(false); setCaptureError(t(geoErrorKey(r.error ?? 'unavailable'))); return; }
@@ -121,7 +125,7 @@ export function ExecutionPanel({
     // that, take a fresh reading here first.
     let current = reading;
     let series = samples;
-    if (requiresGps && (!current || !capturedAt || Date.now() - capturedAt > READING_MAX_AGE_MS)) {
+    if (requiresGps && (!current || !capturedAt || Date.now() - capturedAt > readingMaxAgeMs)) {
       const fresh = await capture();
       if (!fresh) { setBusy(false); return; }
       current = fresh.best;

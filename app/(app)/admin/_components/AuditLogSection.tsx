@@ -21,7 +21,7 @@ interface AuditRow {
 }
 
 const PAGE = 50;
-const ACTIONS = ['activity.created', 'activity.started', 'activity.status_changed', 'activity.completed', 'activity.primary_pic_changed', 'review.approved', 'review.rejected'];
+const ACTIONS = ['record.deleted', 'activity.created', 'activity.started', 'activity.status_changed', 'activity.completed', 'activity.primary_pic_changed', 'review.approved', 'review.rejected'];
 
 /**
  * Read-only view of audit_logs, which the database has been writing all

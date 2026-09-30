@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Plus, RefreshCw, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useAuth, useLanguage } from '@/app/providers';
+import { useAuth, useLanguage, useSettings } from '@/app/providers';
 import type { Activity, ActivityCategory } from '@/lib/types';
 import type { DictKey } from '@/lib/i18n';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
@@ -18,8 +18,9 @@ import { LoadingState, SkeletonList, ErrorState, EmptyState } from '@/components
 import { ActivityFormModal } from './_components/ActivityFormModal';
 import { exportActivities, type Filterable } from './_components/exportActivities';
 import { SearchableSelect } from '@/components/shared/SearchableSelect';
+import { MiniDonut, STATUS_COLOR } from '@/components/shared/MiniDonut';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 
-const PAGE_SIZE = 15;
 
 // Date quick-filters: "what's on today / this week / what slipped" was the
 // question people opened this list with, and answering it meant paging
@@ -30,6 +31,8 @@ type Range = typeof RANGES[number];
 function RequestScheduleContent() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  // Admin Panel → Aturan Sistem → Tampilan & Notifikasi.
+  const PAGE_SIZE = useSettings().get<number>('list.page_size');
   const searchParams = useSearchParams();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
@@ -43,6 +46,7 @@ function RequestScheduleContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
 
   const preselectedProjectId = searchParams.get('projectId') ?? undefined;
 
@@ -56,7 +60,7 @@ function RequestScheduleContent() {
 
   // The list's filters, shared with the Excel export so the file always
   // matches what's on screen (just without the paging).
-  const applyFilters = useCallback(<Q extends Filterable<Q>>(query: Q): Q => {
+  const applyFilters = useCallback(<Q extends Filterable<Q>>(query: Q, withStatus = true): Q => {
     const today = localDateKey();
     if (range === 'today') query = query.eq('scheduled_date', today);
     if (range === 'week') {
@@ -66,7 +70,7 @@ function RequestScheduleContent() {
     if (range === 'overdue') query = query.lt('scheduled_date', today).in('status', ['scheduled', 'in_progress']);
     const searchFilter = ilikeAny(['title', 'request_number', 'customer_name'], debouncedSearch);
     if (searchFilter) query = query.or(searchFilter);
-    if (status) query = query.eq('status', status);
+    if (status && withStatus) query = query.eq('status', status);
     if (categoryId) query = query.eq('category_id', categoryId);
     return query;
   }, [range, debouncedSearch, status, categoryId]);
@@ -107,13 +111,18 @@ function RequestScheduleContent() {
       if (err) throw err;
       setActivities((data as Activity[]) ?? []);
       setTotal(count ?? 0);
+      // The donut: every status under the same filters, not just this page.
+      const counts = await Promise.all(ACTIVITY_STATUSES.map(s =>
+        applyFilters(supabase.from('activities').select('id', { count: 'exact', head: true }), false).eq('status', s)
+          .then(({ count: n }: { count: number | null }) => [s, n ?? 0] as const)));
+      setStatusCounts(Object.fromEntries(counts));
       if (page > 1 && (data ?? []).length === 0 && (count ?? 0) > 0) setPage(1);
     } catch (e) {
       setError(errorMessage(e, t('activity.failedToLoadList')));
     } finally {
       setLoading(false);
     }
-  }, [page, range, applyFilters, t, setPage]);
+  }, [page, range, applyFilters, t, setPage, PAGE_SIZE]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -174,6 +183,14 @@ function RequestScheduleContent() {
         </button>
       </div>
 
+      <MiniDonut
+        className="mb-4"
+        title={t('nav.requestSchedule')}
+        active={status}
+        onPick={k => { setStatus(status === k ? '' : k); setPage(1); }}
+        items={ACTIVITY_STATUSES.map(s => ({ key: s, label: t(`status.${s}` as DictKey), count: statusCounts[s] ?? 0, color: STATUS_COLOR[s] }))}
+      />
+
       <div className="bg-white rounded-card border border-slate-200 shadow-bento overflow-hidden">
         {loading ? (
           <SkeletonList rows={6} />
@@ -197,6 +214,7 @@ function RequestScheduleContent() {
                   <div className="hidden sm:block text-sm text-slate-500 w-28 shrink-0">{formatDate(a.scheduled_date)}</div>
                   <div className="hidden sm:block text-sm text-slate-500 w-24 shrink-0">{a.personnel_count} {t('activity.people')}</div>
                   <StatusBadge status={a.status} />
+                  <DeleteButton kind="activity" id={a.id} name={a.title} onDeleted={load} />
                 </Link>
               ))}
             </div>

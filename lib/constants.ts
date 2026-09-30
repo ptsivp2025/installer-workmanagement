@@ -13,8 +13,33 @@ export function suspiciousGpsFlags(flags: string[] | null | undefined): string[]
   return (flags ?? []).filter(f => !INFO_GPS_FLAGS.includes(f));
 }
 
-export const ROLES = ['admin', 'supervisor', 'installer', 'reviewer', 'sales'] as const;
+export const ROLES = ['admin', 'supervisor', 'installer', 'reviewer', 'sales_admin', 'sales'] as const;
 export type Role = (typeof ROLES)[number];
+
+/**
+ * The four kinds of account people choose between (register, Admin Panel):
+ *  - admin:       Admin Aplikasi, runs the platform.
+ *  - team:        internal staff; the role below it says which (installer,
+ *                 supervisor, reviewer).
+ *  - sales_admin: a vendor's Admin Sales; sees and requests for the whole
+ *                 division, on behalf of its Sales Proyek.
+ *  - sales:       Sales Proyek, the Sales a project belongs to.
+ * Admin Sales and Sales Proyek of one division are one team: both see every
+ * project of that division (migration 030).
+ */
+export const ACCOUNT_TYPES = ['team', 'admin', 'sales_admin', 'sales'] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+export const TEAM_ROLES = ['installer', 'supervisor', 'reviewer'] as const;
+/** What someone may pick on the public sign-up page (never admin). */
+export const SELF_REGISTER_ROLES = [...TEAM_ROLES, 'sales_admin', 'sales'] as const;
+
+export function accountTypeOf(role: string | null | undefined): AccountType {
+  return role === 'admin' ? 'admin' : role === 'sales_admin' ? 'sales_admin' : role === 'sales' ? 'sales' : 'team';
+}
+/** Vendor-side accounts: they belong to a division and see only its work. */
+export function isSalesRole(role: string | null | undefined): boolean {
+  return role === 'sales' || role === 'sales_admin';
+}
 
 // Job title, tracked separately from `role`: role decides what the platform
 // lets you do, position is who you are in the org chart (a Manager and a

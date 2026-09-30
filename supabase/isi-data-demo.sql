@@ -16,17 +16,12 @@
 --
 -- Tanggal dihitung dari hari ini, jadi "Hari Ini" dan "Terlambat" langsung
 -- terisi. Nama orang, perusahaan, dan nomor telepon semuanya fiktif.
---
--- Urutan: jalankan migrasi 030 lebih dulu (akun Admin Sales & Sales Proyek).
 -- ════════════════════════════════════════════════════════════════════════════
 BEGIN;
 SET LOCAL TIME ZONE 'Asia/Jakarta';
 
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'project_requests' AND column_name = 'sales_user_id') THEN
-    RAISE EXCEPTION 'Jalankan migrasi 030_accounts_visibility_settings.sql dulu, baru isi data demo.';
-  END IF;
   IF EXISTS (SELECT 1 FROM public.users WHERE id = 'a1000000-0000-0000-0000-000000000001')
      OR EXISTS (SELECT 1 FROM public.projects WHERE id = 'b1000000-0000-0000-0000-000000000001') THEN
     RAISE EXCEPTION 'Data demo sudah ada. Jalankan hapus-data-demo.sql dulu kalau ingin mengisi ulang.';
@@ -44,7 +39,7 @@ ALTER TABLE public.project_requests   DISABLE TRIGGER USER;
 
 -- ── Akun contoh (tanpa kata sandi) ─────────────────────────────────────────
 CREATE TEMP TABLE demo_div (sales text, code text) ON COMMIT DROP;
-INSERT INTO demo_div VALUES ('andi', 'enterprise'), ('dewi', 'enterprise'), ('sari', 'havs'), ('fajar', 'ivp'), ('lina', 'mvi');
+INSERT INTO demo_div VALUES ('andi', 'enterprise'), ('sari', 'havs'), ('fajar', 'ivp'), ('lina', 'mvi');
 CREATE TEMP TABLE demo_div_id ON COMMIT DROP AS
 SELECT d.sales, COALESCE((SELECT id FROM public.sales_divisions s WHERE s.code = d.code),
                          (SELECT id FROM public.sales_divisions ORDER BY sort_order, name LIMIT 1)) AS division_id
@@ -64,9 +59,7 @@ FROM (VALUES
  ('a1000000-0000-0000-0000-000000000008', 'fajar',  'Fajar Nugroho',  'sales',      '0813-7788-3003', 'fajar@contoh.co.id',  'staff',        'approved', interval '50 days'),
  ('a1000000-0000-0000-0000-000000000009', 'lina',   'Lina Marlina',   'sales',      '0813-7788-3004', 'lina@contoh.co.id',   'staff',        'approved', interval '50 days'),
  ('a1000000-0000-0000-0000-000000000010', 'hendra', 'Hendra Gunawan', 'reviewer',   '0812-3456-1002', 'hendra@contoh.co.id', 'staff',        'approved', interval '40 days'),
- ('a1000000-0000-0000-0000-000000000011', 'yoga',   'Yoga Pratama',   'installer',  '0812-9900-4411', 'yoga@contoh.co.id',   'staff',        'pending',  interval '20 hours'),
- -- Admin Sales of Andi's division: sees all of it, asks on Andi's behalf.
- ('a1000000-0000-0000-0000-000000000012', 'dewi',   'Dewi Anggraini', 'sales_admin','0813-7788-3010', 'dewi@contoh.co.id',   'staff',        'approved', interval '65 days')
+ ('a1000000-0000-0000-0000-000000000011', 'yoga',   'Yoga Pratama',   'installer',  '0812-9900-4411', 'yoga@contoh.co.id',   'staff',        'pending',  interval '20 hours')
 ) AS v(id, u, full_name, role, phone, email, position, approval, age)
 LEFT JOIN demo_div_id dd ON dd.sales = v.u;
 
@@ -245,22 +238,20 @@ FROM (VALUES
 ) AS v(purchase, demo, reason, billing, note, by_admin, ago);
 
 -- ── Permintaan proyek dari Sales ───────────────────────────────────────────
-INSERT INTO public.project_requests (requested_by, sales_user_id, sales_division_id, project_name, customer_name, customer_phone, address, latitude, longitude,
+INSERT INTO public.project_requests (requested_by, sales_division_id, project_name, customer_name, customer_phone, address, latitude, longitude,
                                      category_id, requested_date, notes, status, reviewed_by, reviewed_at, rejection_reason, resulting_project_id, created_at)
-SELECT u.id, o.id, o.sales_division_id, '[DEMO] ' || r.name, r.customer, r.phone, r.address, r.lat, r.lng,
+SELECT u.id, u.sales_division_id, '[DEMO] ' || r.name, r.customer, r.phone, r.address, r.lat, r.lng,
        (SELECT id FROM public.activity_categories WHERE code = r.cat), current_date + r.req_off, r.notes, r.status,
        CASE WHEN r.status <> 'pending' THEN (SELECT id FROM public.users WHERE username = 'admin' LIMIT 1) END,
        CASE WHEN r.status <> 'pending' THEN now() - ((r.created_off - 1) || ' days')::interval END,
        r.reason, r.result, now() - (r.created_off || ' days')::interval - interval '2 hours'
 FROM (VALUES
-  ('andi',  'andi',  'Bank Sejahtera – Kantor Cabang Bandung', 'PT Bank Sejahtera Tbk', '0811-5000-005', 'Jl. Asia Afrika No. 88, Bandung', -6.921500, 107.607100, 'instalasi_demo', 6, 'Demo 2 unit display teller.', 'pending', NULL, NULL::uuid, 1),
-  ('dewi',  'andi',  'Menara Sentosa – Ruang Rapat Lt. 28', 'PT Nusantara Sentosa', '0811-1000-001', 'Menara Sentosa Lt. 28, Jl. Jend. Sudirman Kav. 52, Jakarta Selatan', -6.225300, 106.809000, 'instalasi_demo', 4, 'Diajukan Admin Sales untuk Andi.', 'pending', NULL, NULL, 0),
-  ('sari',  'sari',  'Hotel Grand Arunika Bali – Meeting Room', 'PT Arunika Hospitality', '0811-2000-002', 'Jl. Pantai Kuta No. 9, Badung, Bali', -8.718400, 115.168600, 'survey_meeting', 9, 'Survey 4 meeting room.', 'pending', NULL, NULL, 0),
-  ('lina',  'lina',  'Command Center Pemkot Harapan', 'Pemerintah Kota Harapan', '0811-6000-006', 'Jl. Ahmad Yani No. 1, Bekasi', -6.234900, 106.989600, 'survey_meeting', -9, NULL, 'approved', NULL, 'b1000000-0000-0000-0000-000000000006'::uuid, 12),
-  ('fajar', 'fajar', 'SMA Bina Bangsa – Lab Multimedia', 'Yayasan Bina Bangsa', '0811-9000-009', 'Jl. Pemuda No. 20, Semarang', -6.982500, 110.409200, 'instalasi_demo', 3, NULL, 'rejected', 'Di luar area layanan, diteruskan ke mitra Semarang.', NULL, 6)
-) AS r(requester, owner, name, customer, phone, address, lat, lng, cat, req_off, notes, status, reason, result, created_off)
-JOIN public.users u ON u.username = 'demo.' || r.requester
-JOIN public.users o ON o.username = 'demo.' || r.owner;
+  ('andi',  'Bank Sejahtera – Kantor Cabang Bandung', 'PT Bank Sejahtera Tbk', '0811-5000-005', 'Jl. Asia Afrika No. 88, Bandung', -6.921500, 107.607100, 'instalasi_demo', 6, 'Demo 2 unit display teller.', 'pending', NULL, NULL::uuid, 1),
+  ('sari',  'Hotel Grand Arunika Bali – Meeting Room', 'PT Arunika Hospitality', '0811-2000-002', 'Jl. Pantai Kuta No. 9, Badung, Bali', -8.718400, 115.168600, 'survey_meeting', 9, 'Survey 4 meeting room.', 'pending', NULL, NULL, 0),
+  ('lina',  'Command Center Pemkot Harapan', 'Pemerintah Kota Harapan', '0811-6000-006', 'Jl. Ahmad Yani No. 1, Bekasi', -6.234900, 106.989600, 'survey_meeting', -9, NULL, 'approved', NULL, 'b1000000-0000-0000-0000-000000000006'::uuid, 12),
+  ('fajar', 'SMA Bina Bangsa – Lab Multimedia', 'Yayasan Bina Bangsa', '0811-9000-009', 'Jl. Pemuda No. 20, Semarang', -6.982500, 110.409200, 'instalasi_demo', 3, NULL, 'rejected', 'Di luar area layanan, diteruskan ke mitra Semarang.', NULL, 6)
+) AS r(sales, name, customer, phone, address, lat, lng, cat, req_off, notes, status, reason, result, created_off)
+JOIN public.users u ON u.username = 'demo.' || r.sales;
 
 -- ── Riwayat aktivitas ───────────────────────────────────────────────────────
 INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, meta, created_at)
@@ -284,7 +275,6 @@ ALTER TABLE public.project_requests   ENABLE TRIGGER USER;
 SELECT (SELECT count(*) FROM public.projects   WHERE id::text LIKE 'b1000000-0000-0000-0000-%') AS proyek_demo,
        (SELECT count(*) FROM public.activities WHERE id::text LIKE 'c1000000-0000-0000-0000-%') AS kegiatan_demo,
        (SELECT count(*) FROM public.users      WHERE id::text LIKE 'a1000000-0000-0000-0000-%') AS akun_demo,
-       (SELECT count(*) FROM public.project_requests WHERE project_name LIKE '[DEMO]%') AS permintaan_demo,
        (SELECT count(*) FROM public.activity_evidence WHERE activity_id::text LIKE 'c1000000-0000-0000-0000-%') AS foto_demo;
 
 COMMIT;

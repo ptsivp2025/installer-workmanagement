@@ -5,6 +5,7 @@ import { Plus, ArrowUp, ArrowDown, Pencil, Power, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { SalesDivision } from '@/lib/types';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
 import { SearchInput } from '@/components/shared/SearchInput';
@@ -95,6 +96,7 @@ export function SalesDivisionsSection() {
                   <td className="px-4 py-3 text-right space-x-2">
                     <button onClick={() => { setEditing(d); setFormOpen(true); }} className="text-slate-400 hover:text-slate-700 inline-flex"><Pencil className="h-4 w-4" /></button>
                     <button onClick={() => toggleActive(d)} title={d.active ? t('common.deactivate') : t('common.activate')} className="text-slate-400 hover:text-slate-700 inline-flex"><Power className="h-4 w-4" /></button>
+                    <DeleteButton kind="division" id={d.id} name={d.name} onDeleted={load} />
                   </td>
                 </tr>
                 );

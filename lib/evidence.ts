@@ -22,9 +22,13 @@ export async function fetchSignedUrls(paths: string[]): Promise<Record<string, s
  * removed before throwing rather than left behind as an orphaned object
  * with no activity_evidence row ever pointing to it.
  */
-export async function uploadEvidencePhoto(activityId: string, file: File): Promise<{ storagePath: string; thumbnailPath: string }> {
+export async function uploadEvidencePhoto(
+  activityId: string, file: File,
+  // Admin Panel → Aturan Sistem → Foto Bukti (defaults 1600 px, 75 %).
+  size: { maxDim: number; qualityPct: number } = { maxDim: 1600, qualityPct: 75 },
+): Promise<{ storagePath: string; thumbnailPath: string }> {
   const [full, thumb] = await Promise.all([
-    compressImage(file, { maxDim: 1600, quality: 0.75 }),
+    compressImage(file, { maxDim: size.maxDim, quality: size.qualityPct / 100 }),
     compressImage(file, { maxDim: 320, quality: 0.6 }),
   ]);
 

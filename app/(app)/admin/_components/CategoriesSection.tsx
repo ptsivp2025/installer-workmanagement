@@ -5,6 +5,7 @@ import { Plus, ArrowUp, ArrowDown, Pencil, Power, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import type { ActivityCategory } from '@/lib/types';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 import { LoadingState, ErrorState } from '@/components/shared/States';
 import { Modal } from '@/components/shared/Modal';
 
@@ -90,6 +91,7 @@ export function CategoriesSection() {
                   <td className="px-4 py-3 text-right space-x-2">
                     <button onClick={() => { setEditing(c); setFormOpen(true); }} className="text-slate-400 hover:text-slate-700 inline-flex"><Pencil className="h-4 w-4" /></button>
                     <button onClick={() => toggleActive(c)} title={c.active ? t('common.deactivate') : t('common.activate')} className="text-slate-400 hover:text-slate-700 inline-flex"><Power className="h-4 w-4" /></button>
+                    <DeleteButton kind="category" id={c.id} name={c.name} onDeleted={load} />
                   </td>
                 </tr>
               ))}

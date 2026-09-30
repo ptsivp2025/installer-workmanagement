@@ -1,7 +1,8 @@
 'use client';
 
+import { isSalesRole } from '@/lib/constants';
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Pencil, Calendar, MapPin, Ban, ClipboardCheck, History, UserRound, Package, Star, ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -19,8 +20,10 @@ import type { DictKey } from '@/lib/i18n';
 import { BackButton } from '@/components/shared/BackButton';
 import { useDialog } from '@/components/shared/ConfirmDialog';
 import { GpsRiskBanner } from '@/components/shared/GpsRiskBanner';
+import { DeleteButton } from '@/components/shared/DeleteButton';
 
 export default function ActivityDetailPage() {
+  const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -109,7 +112,7 @@ export default function ActivityDetailPage() {
   // extra division check needed client-side. Scoped to date/time/priority/
   // notes only; everything else the server-side guard trigger refuses
   // (021_sales_reschedule.sql), so the UI never even offers it.
-  const canReschedule = user?.role === 'sales';
+  const canReschedule = isSalesRole(user?.role);
   // Running the job (start, photos, team, complete) is field work. Sales
   // and reviewers only follow along here — offering them "Start" or "Add
   // photos" just invited taps on buttons that aren't theirs to press (and
@@ -212,6 +215,9 @@ export default function ActivityDetailPage() {
             <Ban className="h-3.5 w-3.5" /> {t('activity.cancelActivity')}
           </button>
         )}
+        <div className="mt-3">
+          <DeleteButton kind="activity" id={activity.id} name={activity.title} variant="button" onDeleted={() => router.replace('/request-schedule')} />
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -219,7 +225,7 @@ export default function ActivityDetailPage() {
           activity={activity} targetLat={targetLat} targetLng={targetLng} canAct={canAct} onChanged={load}
           evidenceCount={evidence.length} personnelCount={personnel.length}
         />
-        {activity.status === 'completed' && user?.role !== 'sales' && <GpsRiskBanner flags={activity.gps_risk_flags} />}
+        {activity.status === 'completed' && !isSalesRole(user?.role) && <GpsRiskBanner flags={activity.gps_risk_flags} />}
         <PersonnelPanel activityId={activity.id} personnel={personnel} locked={locked} canEdit={canAct} isStaff={!!canEditSchedule} onChanged={load} />
         <EvidencePanel
           activityId={activity.id}
