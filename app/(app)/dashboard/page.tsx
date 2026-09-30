@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
-import type { ActivityCategory, PlatformSettings } from '@/lib/types';
+import type { ActivityCategory, PlatformSettings, DemoTimelineRow } from '@/lib/types';
+import { computePairing } from '@/lib/demo-pairing';
 import { ErrorState, SkeletonCards } from '@/components/shared/States';
 import { withTimeout, failIfAnyErrored, fetchAllRows, errorMessage, localDateKey, getDateLocale, formatDate } from '@/lib/utils';
 import { ACTIVITY_STATUSES } from '@/lib/constants';
@@ -180,20 +181,16 @@ function StaffDashboard() {
       // Best-effort: a pending migration hides the card, it never takes the
       // dashboard down.
       try {
-        const head = (table: string) => supabase.from(table).select('*', { count: 'exact', head: true });
-        const [linked, notBilled, billed, accepted, suggested] = await Promise.all([
-          head('activity_demo_links'),
-          head('activity_demo_links').eq('billing_status', 'not_billed'),
-          head('activity_demo_links').eq('billing_status', 'billed'),
-          head('activity_demo_links').eq('billing_status', 'accepted'),
-          head('activity_demo_suggestions').eq('rank', 1),
-        ]);
+        // Same computation as the recap page, so the two never disagree.
+        const timeline = await fetchAllRows<DemoTimelineRow>((from, to) => supabase
+          .from('activity_demo_timeline').select('*').order('activity_id').range(from, to));
+        const { linked, needsPairing } = computePairing(timeline);
         setDemoPurchase({
-          linked: linked.count ?? 0,
-          notBilled: notBilled.count ?? 0,
-          billed: billed.count ?? 0,
-          accepted: accepted.count ?? 0,
-          needsConfirm: suggested.count ?? 0,
+          linked: linked.length,
+          notBilled: linked.filter(r => r.billing_status === 'not_billed').length,
+          billed: linked.filter(r => r.billing_status === 'billed').length,
+          accepted: linked.filter(r => r.billing_status === 'accepted').length,
+          needsConfirm: needsPairing.length,
         });
       } catch {
         setDemoPurchase({ linked: 0, notBilled: 0, billed: 0, accepted: 0, needsConfirm: 0 });

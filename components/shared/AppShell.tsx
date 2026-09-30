@@ -209,12 +209,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Bottom padding keeps the phone tab bar + footer from covering the
             end of the page, save buttons at the foot of a form included. */}
-        <main className="flex-1 min-w-0 px-3 sm:px-5 py-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sidebar:pb-[3.75rem] max-w-[1500px] w-full mx-auto flex flex-col">
+        <main className="flex-1 min-w-0 px-3 sm:px-5 py-4 pb-[calc(5rem+env(safe-area-inset-bottom))] sidebar:pb-[3.75rem] max-w-[1500px] w-full mx-auto flex flex-col">
           {/* key={pathname}: each page enters with the same short animation. */}
           <div key={pathname} className="animate-page flex-1">{children}</div>
-          {/* Phone: the footer ends the page and scrolls with it, so the
-              tab bar is the only thing pinned to the bottom of the screen. */}
-          <Footer platformName={platformName} inline />
         </main>
       </div>
 
@@ -284,6 +281,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
             </div>
+            {/* Phone: who made it and which build is running live here, in
+                the menu, not as a strip stacked on the tab bar. A problem
+                report still says which version it is about. */}
+            <BuildLine platformName={platformName} />
           </div>
         </div>
       )}
@@ -611,28 +612,46 @@ export function Initials({ name, size = 'md' }: { name: string; size?: 'md' | 'l
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */
 
-/**
- * Who made it on the left, which build is running on the right, so a
- * problem report always says which version it's about.
- *
- * Desktop: pinned to the bottom of the screen; its height (h-9) is balanced
- * by <main>'s bottom padding and the sidebar height, change them together.
- * Phone (`inline`): the last thing on the page, scrolling with it. Pinned
- * above the tab bar it read as a second bar stacked on the navigation.
- */
-function Footer({ platformName, inline }: { platformName: string; inline?: boolean }) {
-  const { t } = useLanguage();
+function buildIdentity() {
   const version = process.env.NEXT_PUBLIC_APP_VERSION;
   const commit = process.env.NEXT_PUBLIC_COMMIT;
   const built = process.env.NEXT_PUBLIC_BUILD_TIME;
   const builtAt = built
     ? new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).format(new Date(built))
     : null;
+  return { version, commit, builtAt };
+}
+
+/** The same identity as the desktop footer, as a quiet line at the foot of the phone menu. */
+function BuildLine({ platformName }: { platformName: string }) {
+  const { t } = useLanguage();
+  const { version, commit } = buildIdentity();
+  return (
+    <p className="mt-2 px-2 pt-2 border-t border-slate-100 text-[10.5px] text-slate-400 flex items-center justify-between gap-2">
+      <span className="truncate min-w-0">© {new Date().getFullYear()} {platformName} · {t('shell.createdBy')}</span>
+      <span className="shrink-0 tabular-nums">
+        {version && `v${version}`}{commit && <span className="font-mono"> · {commit}</span>}
+      </span>
+    </p>
+  );
+}
+
+/**
+ * Desktop only: who made it on the left, which build is running on the right,
+ * so a problem report always says which version it's about. Pinned to the
+ * bottom of the screen; its height (h-9) is balanced by <main>'s bottom
+ * padding and the sidebar height, change them together.
+ *
+ * Never on a phone. Pinned above the tab bar it read as a second bar stacked
+ * on the navigation, and at the end of the page it still sat right on top of
+ * it once scrolled down; the same line is in the "Lainnya" menu instead.
+ */
+function Footer({ platformName }: { platformName: string }) {
+  const { t } = useLanguage();
+  const { version, commit, builtAt } = buildIdentity();
 
   return (
-    <footer className={inline
-      ? 'sidebar:hidden mt-6 pt-3 border-t border-slate-200 flex items-center justify-between gap-3'
-      : 'hidden sidebar:flex fixed inset-x-0 bottom-0 z-30 h-9 border-t border-slate-200 bg-white/95 backdrop-blur px-5 items-center justify-between gap-3'}>
+    <footer className="hidden sidebar:flex fixed inset-x-0 bottom-0 z-30 h-9 border-t border-slate-200 bg-white/95 backdrop-blur px-5 items-center justify-between gap-3">
       <p className="text-[10.5px] sm:text-[11px] text-slate-500 truncate min-w-0">
         © {new Date().getFullYear()} {platformName}
         <span className="text-slate-400"> · {t('shell.createdBy')}</span>
