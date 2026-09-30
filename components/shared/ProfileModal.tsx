@@ -48,6 +48,8 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMessage, setPwMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  // undefined = still asking, null = no APK published, object = the current release.
+  const [release, setRelease] = useState<{ versionName: string; size: number | null } | null | undefined>(undefined);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -80,6 +82,13 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
     setEditing(false);
     setPwMessage(null);
     setAppVersion(isNativeApp() ? nativeAppVersion() : null);
+    // Only offer the download when there is actually a file to download.
+    setRelease(undefined);
+    fetch('/api/app/version', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((j: { versionName?: string; versionCode?: number; size?: number | null } | null) =>
+        setRelease(j?.versionCode ? { versionName: String(j.versionName ?? j.versionCode), size: j.size ?? null } : null))
+      .catch(() => setRelease(null));
   }, [open, load]);
 
   async function handleSave(e: React.FormEvent) {
@@ -249,11 +258,23 @@ export function ProfileModal({ open, onClose, onSignOut }: { open: boolean; onCl
                       </button>
                     )}
                   </div>
+                ) : release === undefined ? (
+                  <p className="mt-3 text-[12px] text-slate-400">{t('common.loading')}</p>
+                ) : release === null ? (
+                  // Nothing uploaded yet: a download button here led to an
+                  // empty/error page. Say so, and tell an admin where to fix it.
+                  <div className="mt-3 rounded-control bg-amber-50 border border-amber-200 px-3 py-2.5 text-[12.5px] text-amber-800">
+                    <p className="font-semibold">{t('profile.appNotPublished')}</p>
+                    <p className="mt-0.5 text-amber-700">
+                      {profile?.role === 'admin' ? t('profile.appNotPublishedAdmin') : t('profile.appNotPublishedUser')}
+                    </p>
+                  </div>
                 ) : (
                   <>
                     <a href="/api/app/download"
                       className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-control bg-gradient-to-r from-brand-700 to-brand-500 text-white text-sm font-bold px-4 py-3 shadow-bento hover:from-brand-800 hover:to-brand-600">
-                      <Download className="h-4 w-4" /> {t('profile.appDownload')}
+                      <Download className="h-4 w-4" /> {t('profile.appDownload')} · v{release.versionName}
+                      {release.size ? <span className="font-medium opacity-80">({Math.max(1, Math.round(release.size / 1024))} KB)</span> : null}
                     </a>
                     <ol className="mt-3 space-y-1 text-[12px] text-slate-500 list-decimal pl-4">
                       <li>{t('profile.appStep1')}</li>

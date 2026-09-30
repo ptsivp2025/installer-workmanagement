@@ -252,6 +252,40 @@ SELECT t_as('00000000-0000-0000-0000-000000000001');
 SELECT t_check('an admin can read the Telegram bot settings', (SELECT count(*) = 1 FROM notification_settings));
 RESET ROLE;
 
+-- How many rows a write actually changed (RLS silently filters the rest).
+CREATE OR REPLACE FUNCTION t_changed(p_sql text) RETURNS integer LANGUAGE plpgsql AS $$
+DECLARE n integer;
+BEGIN
+  EXECUTE p_sql;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  RETURN n;
+END $$;
+GRANT EXECUTE ON FUNCTION t_changed(text) TO anon;
+
+-- ── 028: the Android APK bucket (upload = admin only) ──────────────────────
+GRANT USAGE ON SCHEMA storage TO anon;
+GRANT ALL ON storage.objects, storage.buckets TO anon;
+SELECT t_check('the private app-releases bucket exists',
+  (SELECT count(*) = 1 AND bool_and(NOT public) FROM storage.buckets WHERE id = 'app-releases'));
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000001'); -- seeded admin
+INSERT INTO storage.objects (bucket_id, name) VALUES ('app-releases', 'installer-wm.apk');
+SELECT t_check('an admin can upload the APK', (SELECT count(*) = 1 FROM storage.objects WHERE bucket_id = 'app-releases'));
+SELECT t_check('an admin can replace it (upsert needs update + select)',
+  t_changed($q$ UPDATE storage.objects SET name = 'installer-wm.apk' WHERE bucket_id = 'app-releases' $q$) = 1);
+SELECT t_as('00000000-0000-0000-0000-0000000000a1'); -- installer
+SELECT t_raises('an installer cannot upload an APK',
+  $q$ INSERT INTO storage.objects (bucket_id, name) VALUES ('app-releases', 'evil.apk') $q$);
+SELECT t_check('an installer cannot even list the APK file (downloads go through a signed link)',
+  (SELECT count(*) = 0 FROM storage.objects WHERE bucket_id = 'app-releases'));
+SELECT t_check('and cannot replace it',
+  t_changed($q$ UPDATE storage.objects SET name = 'x.apk' WHERE bucket_id = 'app-releases' $q$) = 0);
+SELECT t_check('or delete it',
+  t_changed($q$ DELETE FROM storage.objects WHERE bucket_id = 'app-releases' $q$) = 0);
+RESET ROLE;
+SELECT t_check('the APK is still there after the installer''s attempts',
+  (SELECT count(*) = 1 FROM storage.objects WHERE bucket_id = 'app-releases' AND name = 'installer-wm.apk'));
+
 -- ── 029: Demo → Purchase timeline, rooms, one sales account per project ────
 -- Two sales accounts in the SAME division: the whole point is that they
 -- still can't see each other's projects.
