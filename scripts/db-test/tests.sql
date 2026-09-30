@@ -294,13 +294,28 @@ SELECT t_check('the confirmed link shows up on the timeline with its reason',
 SELECT t_check('a confirmed purchase is no longer suggested',
   (SELECT count(*) = 0 FROM activity_demo_suggestions WHERE purchase_activity_id = '00000000-0000-0000-0000-0000000000e2'));
 
+-- One demo, one purchase: a second purchase in the same room must not be able
+-- to claim the same (already spent) demo.
+RESET ROLE;
+INSERT INTO activities (id, request_number, project_id, category_id, title, scheduled_date, status, room_name, product_brand, product_type) VALUES
+  ('00000000-0000-0000-0000-0000000000e3', 'R-BELI-2', '00000000-0000-0000-0000-0000000000a9',
+   (SELECT id FROM activity_categories WHERE code = 'instalasi_beli'), 'Beli kedua Ruang Rapat', current_date, 'scheduled', 'Ruang Rapat 1', 'Maxhub', 'Videowall');
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000001');
+SELECT t_check('a demo already backing a purchase is not suggested for a second one',
+  (SELECT count(*) = 0 FROM activity_demo_suggestions WHERE purchase_activity_id = '00000000-0000-0000-0000-0000000000e3'));
+SELECT t_raises('and cannot be linked to a second purchase by hand either',
+  $q$ SELECT iwm_link_demo('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000e1', 'manual') $q$);
+SELECT t_check('the same purchase can still be re-confirmed (correcting the reason)',
+  (iwm_link_demo('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000e1', 'room_and_product') ->> 'linked')::boolean);
+
 -- The isolation that matters: same division, different owner.
 SELECT t_as('00000000-0000-0000-0000-000000000091');
 SELECT t_check('a sales account sees its own project', (SELECT count(*) = 1 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000a9'));
 SELECT t_check('and NOT another sales account''s project in the same division',
   (SELECT count(*) = 0 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000b9'));
 SELECT t_check('a sales account sees only its own projects in total', (SELECT count(*) = 1 FROM projects));
-SELECT t_check('a sales account sees its own project''s activities', (SELECT count(*) = 2 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));
+SELECT t_check('a sales account sees its own project''s activities', (SELECT count(*) = 3 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));
 SELECT t_as('00000000-0000-0000-0000-000000000092');
 SELECT t_check('the other sales account sees neither those activities',
   (SELECT count(*) = 0 FROM activities WHERE project_id = '00000000-0000-0000-0000-0000000000a9'));

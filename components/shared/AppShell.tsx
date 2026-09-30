@@ -72,6 +72,17 @@ const PHONE_TABS: Record<string, string[]> = {
   staff: ['/dashboard', '/projects', '/request-schedule', '/form-review'],
 };
 
+// The tab bar has room for about ten characters per label at 360px; menu
+// names like "Jadwal Kegiatan" got cut mid-word.
+const TAB_LABEL: Record<string, DictKey> = {
+  '/dashboard': 'tab.dashboard',
+  '/projects': 'tab.projects',
+  '/request-schedule': 'tab.schedule',
+  '/form-review': 'tab.formReview',
+  '/project-requests': 'tab.projectRequests',
+  '/sales-review': 'tab.salesReview',
+};
+
 const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(href + '/');
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -220,7 +231,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}
                 className={`flex-1 min-w-0 min-h-[56px] flex flex-col items-center justify-center gap-0.5 py-2 ${active ? 'text-brand-700' : 'text-slate-400'}`}>
                 <span className="relative"><Icon className="h-[19px] w-[19px]" strokeWidth={1.9} /><Dot count={count} /></span>
-                <span className="text-[10px] font-bold leading-none max-w-full truncate px-1">{t(item.labelKey)}</span>
+                <span className="text-[10px] font-bold leading-none max-w-full truncate px-1">{t(TAB_LABEL[item.href] ?? item.labelKey)}</span>
               </Link>
             );
           })}

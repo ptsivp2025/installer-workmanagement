@@ -46,6 +46,11 @@ describe('errorMessage', () => {
     expect(errorMessage({ message: 'permission denied', code: '42501' })).toBe('permission denied [42501]');
     expect(errorMessage({ message: 'bad', hint: 'try x' })).toBe('bad (try x)');
   });
+  it('turns a hidden or missing record (PGRST116) into a plain sentence, not the raw API text', () => {
+    const raw = { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' };
+    expect(errorMessage(raw)).toBe('Data ini tidak ditemukan, atau Anda tidak punya akses ke data ini.');
+    expect(errorMessage(raw)).not.toContain('PGRST116');
+  });
   it('falls back when there is nothing readable', () => {
     expect(errorMessage(null, 'fallback')).toBe('fallback');
     expect(errorMessage(new Error('boom'))).toBe('boom');

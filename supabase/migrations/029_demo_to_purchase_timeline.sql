@@ -158,7 +158,14 @@ CREATE TABLE IF NOT EXISTS public.activity_demo_links (
   -- An activity can't be its own demo.
   CONSTRAINT activity_demo_links_distinct CHECK (purchase_activity_id <> demo_activity_id)
 );
-CREATE INDEX IF NOT EXISTS idx_demo_links_demo ON public.activity_demo_links (demo_activity_id);
+-- One demo backs ONE purchase. The demo fee was waived once; a second
+-- purchase in the same room (another unit, a second phase) must not be able
+-- to claim the same demo again. Enforced here, not just hidden in the UI,
+-- because this is the number a claim against the installer rests on.
+-- Dropped first so a database that already has this migration's earlier,
+-- non-unique index of the same name gets the unique one, not a silent skip.
+DROP INDEX IF EXISTS public.idx_demo_links_demo;
+CREATE UNIQUE INDEX idx_demo_links_demo ON public.activity_demo_links (demo_activity_id);
 CREATE INDEX IF NOT EXISTS idx_demo_links_billing ON public.activity_demo_links (billing_status);
 
 CREATE OR REPLACE TRIGGER trg_demo_links_updated_at
@@ -393,6 +400,8 @@ JOIN LATERAL (
     AND d.status = 'completed'
     AND d.completed_at IS NOT NULL
     AND d.completed_at <= COALESCE(inst.completed_at, now())
+    -- A demo already backing another purchase is spent: never proposed again.
+    AND NOT EXISTS (SELECT 1 FROM public.activity_demo_links used WHERE used.demo_activity_id = d.id)
 ) demo ON true
 WHERE NOT EXISTS (SELECT 1 FROM public.activity_demo_links l WHERE l.purchase_activity_id = inst.id)
   -- Only a real connection is worth proposing: the same room, or the same
@@ -438,6 +447,12 @@ BEGIN
   END IF;
   IF v_demo.project_id <> v_purchase.project_id THEN
     RAISE EXCEPTION 'The demo must belong to the same project.' USING ERRCODE = 'invalid_parameter_value';
+  END IF;
+  -- Friendlier than the unique-index error, and it names the purchase.
+  IF EXISTS (SELECT 1 FROM public.activity_demo_links
+             WHERE demo_activity_id = p_demo_activity_id AND purchase_activity_id <> p_purchase_activity_id) THEN
+    RAISE EXCEPTION 'That demo is already linked to another purchase. One demo can back only one purchase.'
+      USING ERRCODE = 'unique_violation';
   END IF;
 
   INSERT INTO public.activity_demo_links (purchase_activity_id, demo_activity_id, match_reason, confirmed_by)

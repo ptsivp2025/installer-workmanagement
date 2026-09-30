@@ -48,8 +48,8 @@ export function ActivityFormModal({
       .then((res: { data: { room_name: string | null }[] | null }) => {
         const seen = new Map<string, string>();
         for (const r of res.data ?? []) {
-          const name = (r.room_name ?? '').trim();
-          if (name) seen.set(name.toLowerCase().replace(/\s+/g, ' '), name);
+          const name = (r.room_name ?? '').trim().replace(/\s+/g, ' ');
+          if (name) seen.set(name.toLowerCase(), name);
         }
         setRoomSuggestions([...seen.values()].sort());
       });

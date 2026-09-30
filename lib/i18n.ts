@@ -157,6 +157,13 @@ export const dict = {
   'nav.adminPanel': { en: 'Admin Panel', id: 'Panel Admin' },
   'nav.projectRequests': { en: 'Project Requests', id: 'Permintaan Proyek' },
   'nav.demoRecap': { en: 'Demo → Purchase', id: 'Rekap Demo → Beli' },
+  // Short forms for the phone tab bar, where a full label doesn't fit.
+  'tab.dashboard': { en: 'Home', id: 'Dasbor' },
+  'tab.projects': { en: 'Projects', id: 'Proyek' },
+  'tab.schedule': { en: 'Schedule', id: 'Jadwal' },
+  'tab.formReview': { en: 'Review', id: 'Tinjauan' },
+  'tab.projectRequests': { en: 'Requests', id: 'Permintaan' },
+  'tab.salesReview': { en: 'Ratings', id: 'Ulasan' },
   'recap.subtitle': { en: 'Purchases that came out of an earlier demo — the record behind asking the installer for a discount on the second visit.', id: 'Instalasi Beli yang berasal dari Demo sebelumnya — catatan sebagai dasar meminta diskon ke installer di kunjungan kedua.' },
   'recap.sheetName': { en: 'Demo to Purchase', id: 'Demo ke Beli' },
   'recap.tileTotal': { en: 'Linked cases', id: 'Kasus tertaut' },

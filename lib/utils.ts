@@ -130,6 +130,17 @@ export function failIfAnyErrored(results: ReadonlyArray<{ error: { message: stri
  * a generic sentence nobody can act on.
  */
 export function errorMessage(e: unknown, fallback = 'Something went wrong.'): string {
+  // A record that doesn't exist, or that row-level security hides from this
+  // account, both come back as PGRST116 ("JSON object requested, multiple (or
+  // no) rows returned"). To the person looking at it they're the same thing,
+  // and the raw sentence means nothing to them. Deliberately doesn't say which
+  // of the two it was: telling someone "it exists but isn't yours" would
+  // confirm that another account's record is there.
+  if (e && typeof e === 'object' && (e as { code?: unknown }).code === 'PGRST116') {
+    return dateLocale === 'en-US'
+      ? 'This record was not found, or you don’t have access to it.'
+      : 'Data ini tidak ditemukan, atau Anda tidak punya akses ke data ini.';
+  }
   if (e instanceof Error) return e.message;
   if (typeof e === 'string' && e.trim()) return e;
   if (e && typeof e === 'object') {

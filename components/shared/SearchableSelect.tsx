@@ -58,7 +58,10 @@ export function SearchableSelect({
   }
 
   return (
-    <div ref={boxRef} className={`relative ${className}`}>
+    // While open, sit above everything else in the form: the map's location
+    // search box uses z-[1100] so ITS results clear Leaflet's own layers, and
+    // a list under that box was cut off after the first row.
+    <div ref={boxRef} className={`relative ${open ? 'z-[1200]' : ''} ${className}`}>
       <button
         type="button"
         disabled={disabled}
