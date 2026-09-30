@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package, Repeat2 } from 'lucide-react';
+import { MapPin, Calendar, Pencil, Plus, Users, Camera, Navigation, History, Package, Repeat2, UserRound, UserX } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project, Activity, ActivityPersonnel, ActivityDiscountEligibility, DemoTimelineRow } from '@/lib/types';
@@ -108,7 +108,11 @@ export default function ProjectDetailPage() {
             </div>
             <p className="text-sm text-slate-500 mt-1 flex items-center gap-3 flex-wrap">
               {project.customer_name && <span>{project.customer_name}</span>}
-              {project.sales_person_name && <span className="text-slate-400">{t('projects.sales')}: {project.sales_person_name}</span>}
+              {project.sales_user_id && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 border border-brand-100 px-2 py-0.5 text-[12px] text-brand-800">
+                  <UserRound className="h-3.5 w-3.5" />{t('projects.sales')}: <b className="font-semibold">{project.sales_person_name ?? '—'}</b>
+                </span>
+              )}
               {project.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{project.address}</span>}
               {project.expected_completion && <span className="inline-flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{t('projects.target')}: {formatDate(project.expected_completion)}</span>}
             </p>
@@ -122,6 +126,21 @@ export default function ProjectDetailPage() {
             )}
           </div>
         </div>
+
+        {!project.sales_user_id && (
+          <div className="mt-3 flex items-center gap-3 rounded-control border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <UserX className="h-4 w-4 text-amber-600 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-amber-800">{t('projects.salesUnassigned')}</p>
+              <p className="text-[12px] text-amber-700">{t('projects.salesUnassignedHint')}</p>
+            </div>
+            {canEdit && (
+              <button onClick={() => setEditOpen(true)} className="shrink-0 rounded-control bg-amber-600 text-white text-[12.5px] font-semibold px-3 py-1.5 hover:bg-amber-700">
+                {t('projects.assignSales')}
+              </button>
+            )}
+          </div>
+        )}
 
         {project.notes && <p className="text-sm text-slate-600 mt-3 bg-slate-50 rounded-control p-3">{project.notes}</p>}
 

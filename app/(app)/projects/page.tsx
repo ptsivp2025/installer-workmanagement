@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, MapPin, RefreshCw } from 'lucide-react';
+import { Plus, MapPin, RefreshCw, UserRound, UserX } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth, useLanguage } from '@/app/providers';
 import type { Project } from '@/lib/types';
@@ -124,6 +124,18 @@ export default function ProjectsPage() {
                         {p.address && <><MapPin className="h-3 w-3" />{p.address}</>}
                         {p.customer_name && <span className="ml-1">· {p.customer_name}</span>}
                       </p>
+                      {/* Whose project it is, on every row: a missing Sales is a job for the admin. */}
+                      {p.sales_user_id ? (
+                        <p className="text-[12px] text-slate-500 mt-1 inline-flex items-center gap-1">
+                          <UserRound className="h-3 w-3 text-brand-600" />{t('projects.sales')}: <span className="font-semibold text-slate-700">{p.sales_person_name ?? '—'}</span>
+                        </p>
+                      ) : (
+                        <p className="mt-1">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                            <UserX className="h-3 w-3" />{t('projects.salesUnassigned')}
+                          </span>
+                        </p>
+                      )}
                     </div>
                     <div className="hidden sm:block text-sm text-slate-500 w-32 shrink-0">
                       {c.completed}/{c.total} {t('projects.activities')}

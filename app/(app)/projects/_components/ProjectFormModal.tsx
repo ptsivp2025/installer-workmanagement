@@ -55,6 +55,7 @@ export function ProjectFormModal({
     e.preventDefault();
     if (!form.name.trim() || !form.code.trim()) { setError(t('projects.codeNameRequired')); return; }
     if (!form.sales_division_id) { setError(t('projects.divisionRequired')); return; }
+    if (!form.sales_user_id) { setError(t('projects.salesRequired')); return; }
     setSaving(true);
     setError(null);
 
@@ -86,6 +87,9 @@ export function ProjectFormModal({
     onSaved();
   }
 
+  const salesChoices = salesUsers.filter(u => !form.sales_division_id || !u.sales_division_id || u.sales_division_id === form.sales_division_id);
+  const noSalesForCompany = !!form.sales_division_id && salesChoices.length === 0;
+
   return (
     <Modal open={open} onClose={onClose} title={project ? t('projects.editProject') : t('projects.newProject')} wide>
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -107,21 +111,31 @@ export function ProjectFormModal({
           <Field label={t('projects.customerCompany')} required>
             <SearchableSelect
               value={form.sales_division_id}
-              onChange={v => setForm(f => ({ ...f, sales_division_id: v }))}
+              onChange={v => setForm(f => {
+                // A new company: keep the Sales only if they belong to it, and
+                // pick the only one there is so nobody has to open the list.
+                const ofCompany = salesUsers.filter(u => u.sales_division_id === v);
+                const keep = salesUsers.find(u => u.id === f.sales_user_id && (!u.sales_division_id || u.sales_division_id === v));
+                return { ...f, sales_division_id: v, sales_user_id: keep ? keep.id : ofCompany.length === 1 ? ofCompany[0].id : '' };
+              })}
               options={divisions.map(d => ({ value: d.id, label: d.name }))}
               placeholder={t('projects.selectCustomer')}
             />
           </Field>
-          <Field label={t('projects.salesOwner')}>
+          <Field label={t('projects.salesOwner')} required>
             <SearchableSelect
               value={form.sales_user_id}
-              onChange={v => setForm(f => ({ ...f, sales_user_id: v }))}
-              options={salesUsers
-                .filter(u => !form.sales_division_id || !u.sales_division_id || u.sales_division_id === form.sales_division_id)
-                .map(u => ({ value: u.id, label: u.full_name || u.username, hint: `@${u.username}` }))}
+              onChange={v => setForm(f => ({
+                ...f, sales_user_id: v,
+                // Chose the Sales first? Their company follows.
+                sales_division_id: f.sales_division_id || salesUsers.find(u => u.id === v)?.sales_division_id || '',
+              }))}
+              options={salesChoices.map(u => ({ value: u.id, label: u.full_name || u.username, hint: `@${u.username}` }))}
               placeholder={t('projects.selectSalesOwner')}
             />
-            <p className="text-[11px] text-slate-400 mt-1">{t('projects.salesOwnerHint')}</p>
+            <p className={`text-[11px] mt-1 ${noSalesForCompany ? 'text-amber-600 font-medium' : 'text-slate-400'}`}>
+              {noSalesForCompany ? t('projects.noSalesForCompany') : t('projects.salesOwnerHint')}
+            </p>
           </Field>
         </div>
         <LocationPicker

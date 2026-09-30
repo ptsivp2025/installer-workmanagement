@@ -366,6 +366,35 @@ RESET ROLE;
 SELECT t_check('but staff still see it, so an admin can assign one',
   (SELECT count(*) = 1 FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c9'));
 
+-- ── 030: one clear Sales owner per project ─────────────────────────────────
+SELECT t_check('a project''s sales name comes from its sales account',
+  (SELECT sales_person_name = 'Sales A' FROM projects WHERE id = '00000000-0000-0000-0000-0000000000a9'));
+UPDATE projects SET sales_user_id = '00000000-0000-0000-0000-000000000092' WHERE id = '00000000-0000-0000-0000-0000000000c9';
+SELECT t_check('assigning a sales account later fills in the name too',
+  (SELECT sales_person_name = 'Sales B' FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c9'));
+UPDATE projects SET sales_person_name = 'Nama Ketik Bebas' WHERE id = '00000000-0000-0000-0000-0000000000c9';
+SELECT t_check('a typed name can''t drift away from the account',
+  (SELECT sales_person_name = 'Sales B' FROM projects WHERE id = '00000000-0000-0000-0000-0000000000c9'));
+UPDATE users SET full_name = 'Sales B Baru' WHERE id = '00000000-0000-0000-0000-000000000092';
+SELECT t_check('renaming the sales account renames it on its projects',
+  (SELECT bool_and(sales_person_name = 'Sales B Baru') FROM projects WHERE sales_user_id = '00000000-0000-0000-0000-000000000092'));
+
+INSERT INTO project_requests (id, requested_by, sales_division_id, project_name, status)
+  VALUES ('00000000-0000-0000-0000-0000000000f9', '00000000-0000-0000-0000-000000000091', '00000000-0000-0000-0000-0000000000d9', 'Permintaan Sales A', 'pending');
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000001');
+SELECT t_check('approving a sales request creates the project',
+  (iwm_approve_project_request('00000000-0000-0000-0000-0000000000f9', 'PRQ-1') ->> 'project_id') IS NOT NULL);
+RESET ROLE;
+SELECT t_check('with the requesting Sales as its owner, name included',
+  (SELECT p.sales_user_id = '00000000-0000-0000-0000-000000000091' AND p.sales_person_name = 'Sales A'
+   FROM projects p JOIN project_requests r ON r.resulting_project_id = p.id WHERE r.id = '00000000-0000-0000-0000-0000000000f9'));
+SET ROLE anon;
+SELECT t_as('00000000-0000-0000-0000-000000000091');
+SELECT t_check('so that Sales sees the new project straight away',
+  (SELECT count(*) = 1 FROM projects WHERE code = 'PRQ-1'));
+RESET ROLE;
+
 -- ── result ─────────────────────────────────────────────────────────────────
 DO $$
 BEGIN

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useLanguage } from '@/app/providers';
 import { Modal } from '@/components/shared/Modal';
@@ -57,6 +57,12 @@ export function ApproveRequestModal({
           <div className="rounded-control bg-slate-50 border border-slate-200 p-3">
             <p className="font-medium text-slate-900 text-sm">{request.project_name}</p>
             {request.customer_name && <p className="text-xs text-slate-500 mt-0.5">{request.customer_name}</p>}
+            {/* Who will own the project, said before the button is pressed. */}
+            <p className="text-xs font-semibold text-brand-700 mt-2 inline-flex items-center gap-1.5">
+              <UserRound className="h-3.5 w-3.5" />
+              {t('projectRequests.salesOwnerLine', { name: [request.users?.full_name || request.users?.username, request.sales_divisions?.name].filter(Boolean).join(' · ') || '—' })}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">{t('projectRequests.salesOwnerNote')}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('projects.projectCode')}<span className="text-red-500"> *</span></label>
