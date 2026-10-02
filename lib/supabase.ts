@@ -51,7 +51,9 @@ export function refreshDbToken(): Promise<void> {
         // recover that. Bounce to login instead of leaving the user on a
         // shell that will never load data and never say why.
         setDbToken(null);
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        // Never from the pages people use without an account.
+        const open = ['/login', '/register', '/forgot-password'];
+        if (typeof window !== 'undefined' && !open.includes(window.location.pathname)) {
           window.location.replace('/login');
         }
         return;

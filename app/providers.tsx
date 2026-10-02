@@ -5,7 +5,6 @@ import { getSession, verifySessionFromCookie, refreshDbTokenIfNeeded, type Sessi
 import { getStoredLang, setStoredLang, translate, type Lang, type DictKey } from '@/lib/i18n';
 import { applyThemeColor } from '@/lib/theme';
 import { setDateLocale } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
 import { readSetting, toValues, type SettingValues } from '@/lib/settings';
 
 interface AuthContextValue {
@@ -150,8 +149,16 @@ export function useSettings(): SettingsContextValue {
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [values, setValues] = useState<SettingValues>({});
   const load = useCallback(() => {
-    supabase.from('app_settings').select('key, value')
-      .then((res: { data: { key: string; value: unknown }[] | null }) => { if (res.data) setValues(toValues(res.data)); });
+    // A plain anonymous read, not the app's Supabase client: that client
+    // mints a login token first and sends anyone without a session to
+    // /login — which threw visitors off the sign-up and forgot-password
+    // pages. app_settings is readable without login on purpose (030).
+    fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/app_settings?select=key,value`, {
+      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}` },
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then((rows: { key: string; value: unknown }[] | null) => { if (Array.isArray(rows)) setValues(toValues(rows)); })
+      .catch(() => { /* defaults stay in force */ });
   }, []);
   useEffect(() => {
     load();
